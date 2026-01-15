@@ -57,6 +57,9 @@ class WhatIfAnalyzer:
         self.X_train = pipeline.X_train
         self.X_test = pipeline.X_test
 
+        # Store original dataframe for computing real-world feature ranges (CRITICAL FIX)
+        self.original_df = pipeline.df if hasattr(pipeline, 'df') else None
+
         # Build fast index lookup for feature_names
         self._feat_to_idx = {f: i for i, f in enumerate(self.feature_names)}
 
@@ -65,6 +68,9 @@ class WhatIfAnalyzer:
 
         # Cache stats for numeric features for defaults & slider ranges
         self._numeric_stats = self._compute_numeric_stats()
+        
+        # Cache stats for ORIGINAL features (for UI display) - ENHANCED
+        self._original_numeric_stats = self._compute_original_numeric_stats()
 
     # -------------------------
     # Internal helpers
@@ -107,6 +113,32 @@ class WhatIfAnalyzer:
                     mean=float(np.mean(col)),
                     std=float(np.std(col)),
                 )
+
+        return stats
+
+    def _compute_original_numeric_stats(self) -> Dict[str, FeatureStats]:
+        """Compute stats for numeric features from ORIGINAL data (before scaling).
+        
+        This is used for UI display so users see real-world ranges like Age: 18-80
+        instead of normalized ranges like 0.64-0.89
+        """
+        stats: Dict[str, FeatureStats] = {}
+
+        # If original_df is not available, fall back to scaled stats
+        if self.original_df is None:
+            return self._numeric_stats
+
+        # Compute from original dataframe
+        for feat in self.numeric_cols:
+            if feat in self.original_df.columns:
+                col = self.original_df[feat].dropna()
+                if len(col) > 0:
+                    stats[feat] = FeatureStats(
+                        min=float(col.min()),
+                        max=float(col.max()),
+                        mean=float(col.mean()),
+                        std=float(col.std()),
+                    )
 
         return stats
 
@@ -257,11 +289,15 @@ class WhatIfAnalyzer:
         return pd.DataFrame(results)
 
     def get_feature_ranges(self) -> Dict[str, Dict[str, float]]:
-        """Get min, max, mean, std for numeric features from training data."""
+        """Get min, max, mean, std for numeric features from ORIGINAL data.
+        
+        Returns real-world ranges (Age: 18-80) instead of normalized (0.64-0.89)
+        This allows UI to show interpretable slider ranges.
+        """
         ranges: Dict[str, Dict[str, float]] = {}
 
-        # Only numeric features that exist in feature_names can be ranged
-        for feat, st in self._numeric_stats.items():
+        # Use original stats for display (ENHANCED)
+        for feat, st in self._original_numeric_stats.items():
             ranges[feat] = {
                 "min": st.min,
                 "max": st.max,

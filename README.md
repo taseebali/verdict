@@ -28,6 +28,16 @@
 - **Model Export**: Save trained models as joblib artifacts with metadata
 - **HTML Reports**: Beautiful, self-contained reports with all metrics
 - **Docker Support**: Containerized deployment with docker-compose
+
+###  Phase 5: Decision Intelligence & Governance ⭐ NEW
+- **Decision Mapping**: Map predictions to business actions and outcomes
+- **Threshold Control**: Dynamic threshold adjustment with precision-recall tradeoffs
+- **Cost-Aware Selection**: FP/FN costs for business-aligned model selection
+- **Counterfactual Explanations**: "What needs to change to flip a prediction?"
+- **Confidence Estimation**: Distinguish probability from actual confidence, uncertainty quantification
+- **Data Quality Analysis**: Detect target leakage, distribution drift, class imbalance
+- **Decision Audit Trail**: Complete logging of predictions, thresholds, confidence, and actions
+- **Model Cards**: Standardized documentation for governance and responsible AI
 - **Streamlit Cloud Ready**: One-click deployment to Streamlit Cloud
 
 ---
