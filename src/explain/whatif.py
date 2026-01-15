@@ -180,12 +180,17 @@ class WhatIfAnalyzer:
             enc = self.label_encoders[feature]
             try:
                 arr[0, idx] = float(enc.transform([value])[0])
-            except ValueError:
-                # unseen category: choose 0
+            except (ValueError, KeyError):
+                # Unseen category: use first category (0) as default
                 arr[0, idx] = 0.0
         else:
             # No encoder available, try numeric cast
-            arr[0, idx] = float(value)
+            try:
+                arr[0, idx] = float(value)
+            except (ValueError, TypeError):
+                # Can't convert, skip
+                pass
+
 
     def _build_feature_array(self, input_dict: Dict[str, Any]) -> np.ndarray:
         """Build the model input array (shape 1 x n_features) from user-provided values."""
@@ -197,9 +202,16 @@ class WhatIfAnalyzer:
 
         # Then overwrite from input_dict
         for key, value in input_dict.items():
+            # Skip if value is None or empty
+            if value is None or (isinstance(value, str) and not value.strip()):
+                continue
+                
             # Numeric features: direct set if present
             if key in self._feat_to_idx and key in self.numeric_cols:
-                feature_array[0, self._feat_to_idx[key]] = float(value)
+                try:
+                    feature_array[0, self._feat_to_idx[key]] = float(value)
+                except (ValueError, TypeError):
+                    pass
                 continue
 
             # Categorical features:
@@ -212,7 +224,26 @@ class WhatIfAnalyzer:
 
             # If user passes a processed feature name directly (advanced users)
             if key in self._feat_to_idx:
-                feature_array[0, self._feat_to_idx[key]] = float(value)
+                try:
+                    feature_array[0, self._feat_to_idx[key]] = float(value)
+                except (ValueError, TypeError):
+                    # If it's a string value that can't convert to float, treat it as categorical
+                    if isinstance(value, str):
+                        # Try label encoding for this feature
+                        if key in self.label_encoders:
+                            enc = self.label_encoders[key]
+                            try:
+                                encoded_val = float(enc.transform([value])[0])
+                                feature_array[0, self._feat_to_idx[key]] = encoded_val
+                            except (ValueError, KeyError):
+                                # Unseen category - set to 0
+                                feature_array[0, self._feat_to_idx[key]] = 0.0
+                        else:
+                            # No encoder available, skip
+                            pass
+                    else:
+                        # Non-string non-numeric value: skip
+                        pass
 
         return feature_array
 
