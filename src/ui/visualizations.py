@@ -180,3 +180,49 @@ class Visualizer:
         )
         
         return fig
+    @staticmethod
+    def plot_precision_recall_curve(pr_data: dict, current_threshold: float = 0.5):
+        """
+        Create interactive precision-recall curve with threshold indicator.
+        
+        Args:
+            pr_data: Dict with 'precision', 'recall', 'thresholds' lists
+            current_threshold: Current decision threshold to highlight
+        """
+        fig = go.Figure()
+        
+        # Add precision-recall curve
+        fig.add_trace(go.Scatter(
+            x=pr_data['recall'],
+            y=pr_data['precision'],
+            mode='lines',
+            name='Precision-Recall Curve',
+            line=dict(color='#3498db', width=3)
+        ))
+        
+        # Add threshold markers
+        fig.add_trace(go.Scatter(
+            x=pr_data['recall'],
+            y=pr_data['precision'],
+            mode='markers',
+            name='Thresholds',
+            marker=dict(
+                size=6,
+                color=pr_data['thresholds'],
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(title="Threshold")
+            ),
+            text=[f"Threshold: {t:.2f}" for t in pr_data['thresholds']],
+            hovertemplate='<b>%{text}</b><br>Recall: %{x:.3f}<br>Precision: %{y:.3f}<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            title=f'Precision-Recall Tradeoff (Current Threshold: {current_threshold:.2f})',
+            xaxis_title='Recall',
+            yaxis_title='Precision',
+            hovermode='closest',
+            height=500
+        )
+        
+        return fig

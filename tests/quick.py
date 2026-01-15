@@ -1,7 +1,7 @@
 import pandas as pd
 
-from src.pipeline import MLPipeline
-from src.whatif import WhatIfAnalyzer  # <-- change if your file is elsewhere
+from src.core.pipeline import MLPipeline
+from src.explain.whatif import WhatIfAnalyzer  # <-- updated import path
 
 
 def main():

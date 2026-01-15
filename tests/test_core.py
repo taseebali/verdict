@@ -1,17 +1,13 @@
 """Unit tests for core modules."""
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 import pytest
 import pandas as pd
 import numpy as np
-from src.data_handler import DataHandler
-from src.preprocessing import Preprocessor
-from src.models import ModelManager
-from src.metrics import MetricsCalculator
-from src.pipeline import MLPipeline
+from src.core.data_handler import DataHandler
+from src.core.preprocessing import Preprocessor
+from src.core.models import ModelManager
+from src.core.metrics import MetricsCalculator
+from src.core.pipeline import MLPipeline
 
 
 # Test fixtures
