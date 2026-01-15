@@ -1,4 +1,4 @@
-#  AI Decision Copilot
+#  Verdict
 
 **An Intelligent Decision-Support System Powered by AutoML & Explainable AI**
 
@@ -383,7 +383,7 @@ A: Currently ~100MB per file. Larger datasets coming in next release.
 
 ---
 
-##  Contact & Support
+##  📧 Contact & Support
 
 - **Documentation**: See README.md (this file)
 - **Issues**: Create GitHub issue
@@ -392,6 +392,6 @@ A: Currently ~100MB per file. Larger datasets coming in next release.
 
 ---
 
-**Made with  by the AI Decision Copilot Team**
+**Made with ❤️ by the AI Decision Copilot Team**
 
 *Last Updated: January 14, 2026*
