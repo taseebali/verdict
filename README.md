@@ -1,5 +1,5 @@
 #  Verdict
-
+<!-- 
 **An Intelligent Decision-Support System Powered by AutoML & Explainable AI**
 
 > Upload your data. Predict your future. Understand your models.
@@ -394,4 +394,4 @@ A: Currently ~100MB per file. Larger datasets coming in next release.
 
 **Made with ❤️ by the AI Decision Copilot Team**
 
-*Last Updated: January 14, 2026*
+*Last Updated: January 14, 2026* -->
