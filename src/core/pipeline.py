@@ -101,6 +101,9 @@ class MLPipeline:
         eval_results = {}
         task_type = self.model_manager.task_type
         
+        # Convert y_test to numpy array for consistent metric calculation
+        y_test_array = np.asarray(self.y_test).flatten() if hasattr(self.y_test, '__len__') else self.y_test
+        
         for model_name in model_names:
             try:
                 y_pred = self.model_manager.predict(model_name, self.X_test)
@@ -108,10 +111,10 @@ class MLPipeline:
                 if task_type == "classification":
                     y_pred_proba = self.model_manager.predict_proba(model_name, self.X_test)
                     metrics = self.metrics_calculator.calculate_classification_metrics(
-                        self.y_test, y_pred, y_pred_proba
+                        y_test_array, y_pred, y_pred_proba
                     )
                 else:
-                    metrics = self.metrics_calculator.calculate_regression_metrics(self.y_test, y_pred)
+                    metrics = self.metrics_calculator.calculate_regression_metrics(y_test_array, y_pred)
                 
                 eval_results[model_name] = metrics
             except Exception as e:
@@ -182,4 +185,24 @@ class MLPipeline:
 
     def get_target_encoder(self):
         """Get target label encoder."""
-        return self.preprocessor.target_encoder if self.preprocessor else None
+        return self.preprocessor.target_encoder if self.preprocessor else None    
+    def get_scaler(self):
+        """Get the fitted scaler for inverse transformations."""
+        return self.preprocessor.scaler if self.preprocessor else None
+    
+    def get_feature_ranges(self) -> Dict[str, Tuple[float, float]]:
+        """Get original feature ranges from X_train before scaling."""
+        if self.preprocessor is None or self.X_train is None:
+            return {}
+        
+        # Get numeric feature names
+        numeric_cols = self.preprocessor.numeric_cols
+        ranges = {}
+        
+        # Use original DataFrame to get ranges
+        original_df = self.data_handler.df
+        for col in numeric_cols:
+            if col in original_df.columns:
+                ranges[col] = (original_df[col].min(), original_df[col].max())
+        
+        return ranges

@@ -95,3 +95,50 @@ class Preprocessor:
     def get_task_type(self) -> str:
         """Return task type: 'classification' or 'regression'."""
         return "classification" if self.is_classification else "regression"
+
+def rank_target_columns(df: pd.DataFrame) -> List[Tuple[str, int, str, int]]:
+    """
+    Rank DataFrame columns by suitability as target columns.
+    
+    Ranking system:
+    1 (Best): Binary columns (exactly 2 unique values)
+    2: Low cardinality (2-20 unique values)
+    3: Medium cardinality (21-50 unique values)
+    4: High cardinality (50+ unique values) - likely features, not targets
+    
+    Args:
+        df: Input DataFrame
+        
+    Returns:
+        List of tuples: (column_name, rank, reason, unique_count)
+        Sorted by rank (best first)
+    """
+    ranked = []
+    
+    for col in df.columns:
+        unique_count = df[col].nunique()
+        
+        # Skip columns with only 1 unique value (constant columns)
+        if unique_count < 2:
+            continue
+        
+        # Determine rank and reason
+        if unique_count == 2:
+            rank = 1
+            reason = f"✅ Binary ({unique_count} classes)"
+        elif unique_count <= 20:
+            rank = 2
+            reason = f"✅ Low cardinality ({unique_count} classes)"
+        elif unique_count <= 50:
+            rank = 3
+            reason = f"⚠️ Medium cardinality ({unique_count} classes)"
+        else:
+            rank = 4
+            reason = f"❌ High cardinality ({unique_count} classes) - likely a feature"
+        
+        ranked.append((col, rank, reason, unique_count))
+    
+    # Sort by rank (best first), then by column name (alphabetically)
+    ranked.sort(key=lambda x: (x[1], x[0]))
+    
+    return ranked

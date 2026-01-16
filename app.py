@@ -43,6 +43,33 @@ def make_arrow_safe(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def format_human_readable(feature_name: str, value: float) -> str:
+    """
+    Format numeric values to human-readable form with appropriate signs/units.
+    Detects feature type from name and applies proper formatting.
+    """
+    feature_lower = feature_name.lower()
+    
+    # Currency features
+    if any(x in feature_lower for x in ['charge', 'cost', 'price', 'payment', 'bill', 'amount', 'salary', 'income', 'fee']):
+        return f"${value:,.2f}"
+    
+    # Percentage features
+    if any(x in feature_lower for x in ['percent', 'rate', 'pct', 'ratio']):
+        return f"{value:.1f}%"
+    
+    # Count/quantity features (no decimals)
+    if any(x in feature_lower for x in ['count', 'quantity', 'num', 'total_charges', 'times', 'calls', 'contracts', 'months']):
+        return f"{int(round(value))}"
+    
+    # Age/tenure (no decimals)
+    if any(x in feature_lower for x in ['age', 'tenure', 'year', 'month', 'day', 'length']):
+        return f"{int(round(value))} months" if 'tenure' in feature_lower or 'month' in feature_lower else f"{int(round(value))} years"
+    
+    # Default: 2 decimal places
+    return f"{value:.2f}"
+
+
 # -----------------------------
 # Page configuration
 # -----------------------------
@@ -217,9 +244,31 @@ with tab1:
     st.dataframe(make_arrow_safe(schema_df), width="stretch")
 
     st.write("### Feature Distributions")
-    selected_feature = st.selectbox("Select feature to visualize:", df.columns)
-    fig = Visualizer.plot_feature_distribution(df, selected_feature)
-    st.plotly_chart(fig, use_container_width=True)
+    selected_feature = st.selectbox("Select feature to visualize:", df.columns, key="view_feature_select")
+
+    # Optional: if you have a selected target already, use it to make better plots
+    target_col = st.session_state.target_col if st.session_state.get("target_col") in df.columns else None
+
+    fig, meta = Visualizer.auto_feature_view(df, selected_feature, target_col=target_col)
+
+    # Explain what Verdict chose (this makes it feel intelligent)
+    st.caption(f"**Why this view?** {meta.get('reason', 'Auto-selected view')}")
+
+    # If no chart is appropriate, show a friendly explanation instead
+    if fig is None or meta.get("view_type") == "none":
+        notes = meta.get("notes", [])
+        if notes:
+            st.info("\n".join([f"- {n}" for n in notes]))
+        else:
+            st.info("No meaningful chart for this column.")
+
+        # Optional: show a useful preview instead of a chart
+        preview = df[[selected_feature]].dropna().head(10).copy()
+        st.write("**Sample values:**")
+        st.dataframe(preview, width="stretch")
+
+    else:
+        st.plotly_chart(fig, use_container_width=True)
 
 
 # -----------------------------
@@ -235,15 +284,45 @@ with tab2:
     - Click Train to build and evaluate
     """)
 
+    # Get ranked target columns
+    from src.core.preprocessing import rank_target_columns
+    ranked_cols = rank_target_columns(df)
+    
+    # Create display options with rankings
+    col_display_options = [f"{col} {reason}" for col, rank, reason, count in ranked_cols]
+    col_values = [col for col, rank, reason, count in ranked_cols]
+    
+    # Auto-select best option on first load
+    if st.session_state.target_col is None and col_values:
+        st.session_state.target_col = col_values[0]
+    
     left, right = st.columns(2)
 
     with left:
-        st.session_state.target_col = st.selectbox(
+        selected_idx = 0
+        if st.session_state.target_col and st.session_state.target_col in col_values:
+            selected_idx = col_values.index(st.session_state.target_col)
+        
+        selected_display = st.selectbox(
             "Select prediction target:",
-            df.columns,
+            col_display_options,
+            index=selected_idx,
             key="target_select",
-            help="The column you want to predict"
+            help="Ranked by suitability. ✅=Best for classification. ❌=Likely a feature, not a target."
         )
+        
+        # Extract column name from display string
+        st.session_state.target_col = col_values[col_display_options.index(selected_display)]
+        
+        # Show warning for high-cardinality columns
+        selected_rank = ranked_cols[col_display_options.index(selected_display)][1]
+        if selected_rank >= 3:
+            st.warning(f"⚠️ This column has many unique values. Consider using a different target if available.")
+            
+            # Suggest better alternatives
+            good_options = [col for col, rank, reason, count in ranked_cols if rank <= 2]
+            if good_options:
+                st.info(f"💡 Suggested targets: {', '.join(good_options)}")
 
     with right:
         t = st.session_state.target_col
@@ -517,6 +596,91 @@ with tab3:
                     )
 
         st.write("---")
+        st.write("### 🧪 Test Sample Prediction")
+        st.info("💡 Try predictions on a random test sample to see model performance in action")
+
+        test_col1, test_col2 = st.columns([2, 1])
+        
+        with test_col1:
+            if st.button("🎲 Load Random Test Sample", type="primary"):
+                X_test, y_test = st.session_state.pipeline.get_test_data()
+                if len(X_test) > 0:
+                    st.session_state.sample_idx = np.random.randint(0, len(X_test))
+                    st.rerun()
+        
+        if "sample_idx" in st.session_state:
+            X_test, y_test = st.session_state.pipeline.get_test_data()
+            sample_idx = st.session_state.sample_idx
+            
+            sample_data = X_test.iloc[sample_idx].to_dict()
+            actual_label = y_test.iloc[sample_idx]
+            
+            st.write(f"**Sample #{sample_idx} | Actual Outcome: `{actual_label}`**")
+            
+            # Show sample features with human-readable formatting
+            with st.expander("📋 View Sample Features"):
+                sample_df = pd.DataFrame([sample_data]).T
+                sample_df.columns = ["Value"]
+                # Apply human-readable formatting
+                sample_df["Formatted"] = sample_df.index.map(lambda fname: format_human_readable(fname, sample_df.loc[fname, "Value"]))
+                st.dataframe(make_arrow_safe(sample_df[["Formatted"]]), width="stretch")
+            
+            # Get predictions from all models
+            st.write("**Model Predictions:**")
+            pred_cols = st.columns(len(st.session_state.pipeline.model_manager.get_models()))
+            
+            for col, (model_name, _) in zip(pred_cols, st.session_state.pipeline.model_manager.get_models().items()):
+                with col:
+                    y_pred = st.session_state.pipeline.get_model_predictions(model_name, X_test.iloc[[sample_idx]])
+                    prediction = y_pred[0]
+                    
+                    # Try to get confidence
+                    try:
+                        model = st.session_state.pipeline.model_manager.get_model(model_name)
+                        if hasattr(model, "predict_proba"):
+                            proba = model.predict_proba(X_test.iloc[[sample_idx]])
+                            confidence = float(np.max(proba))
+                            st.metric(
+                                model_name.replace("_", " ").title(),
+                                prediction,
+                                f"Confidence: {confidence:.1%}"
+                            )
+                            # Log prediction to audit trail
+                            st.session_state.audit_logger.log_prediction(
+                                prediction=prediction,
+                                probability=confidence,
+                                confidence=confidence,
+                                model_name=model_name,
+                                threshold=0.5,
+                                feature_values=sample_data
+                            )
+                        else:
+                            st.metric(model_name.replace("_", " ").title(), prediction)
+                            st.session_state.audit_logger.log_prediction(
+                                prediction=prediction,
+                                probability=0.5,
+                                confidence=0.5,
+                                model_name=model_name,
+                                threshold=0.5,
+                                feature_values=sample_data
+                            )
+                    except:
+                        st.metric(model_name.replace("_", " ").title(), prediction)
+
+            
+            # Correctness indicator
+            models = st.session_state.pipeline.model_manager.get_models()
+            if len(models) > 0:
+                primary_model = list(models.keys())[0]
+                y_pred_primary = st.session_state.pipeline.get_model_predictions(primary_model, X_test.iloc[[sample_idx]])
+                is_correct = y_pred_primary[0] == actual_label
+                
+                if is_correct:
+                    st.success("✅ **Prediction Correct** - Model got it right!")
+                else:
+                    st.error("❌ **Prediction Wrong** - Model missed on this one")
+
+        st.write("---")
         st.write("### 🎯 Decision Intelligence (Phase 5.1)")
 
         # Decision Intelligence Features
@@ -645,7 +809,11 @@ with tab3:
             feature_names = list(test_sample.keys())
 
             try:
-                explainer = CounterfactualExplainer(feature_names)
+                # Get scaler and feature ranges from pipeline
+                scaler = st.session_state.pipeline.get_scaler()
+                feature_ranges = st.session_state.pipeline.get_feature_ranges()
+                
+                explainer = CounterfactualExplainer(feature_names, scaler=scaler, feature_ranges=feature_ranges)
                 model_obj = st.session_state.pipeline.model_manager.get_models()[selected_model_cf]
 
                 cf_result = explainer.find_counterfactual(
@@ -654,13 +822,35 @@ with tab3:
 
                 st.write(f"**Current Prediction:** {cf_result['original_prediction']}")
                 st.write(cf_result["explanation"])
+                
+                # Log the counterfactual analysis to audit trail
+                st.session_state.audit_logger.log_prediction(
+                    prediction=cf_result['original_prediction'],
+                    probability=0.5,
+                    confidence=0.5,
+                    model_name=selected_model_cf,
+                    threshold=0.5,
+                    feature_values=test_sample,
+                    recommended_action="Counterfactual analysis performed"
+                )
 
                 if cf_result["counterfactuals"]:
                     st.write("**Suggested Changes:**")
                     for i, cf in enumerate(cf_result["counterfactuals"], 1):
+                        # Use unscaled values if available, otherwise use scaled values
+                        original_val = cf.get('original_value_unscaled', cf['original_value'])
+                        new_val = cf.get('new_value_unscaled', cf['new_value'])
+                        change_val = cf.get('change_unscaled', cf['change'])
+                        
+                        # Format values in human-readable form
+                        orig_formatted = format_human_readable(cf['feature'], original_val)
+                        new_formatted = format_human_readable(cf['feature'], new_val)
+                        change_formatted = format_human_readable(cf['feature'], abs(change_val))
+                        change_direction = "↑" if change_val > 0 else "↓"
+                        
                         st.write(
-                            f"{i}. {cf['feature']}: {cf['original_value']:.3f} → {cf['new_value']:.3f} "
-                            f"(Change: {cf['change']:.3f})"
+                            f"{i}. **{cf['feature']}**: {orig_formatted} → {new_formatted} "
+                            f"({change_direction} {change_formatted})"
                         )
 
             except Exception as e:
@@ -901,6 +1091,7 @@ with tab4:
             categorical_options = whatif.get_categorical_options()
 
             st.write("#### Adjust Feature Values")
+            st.caption("💡 Adjust sliders to create different scenarios - values shown in real-world units")
             col1, col2 = st.columns(2)
             input_dict = {}
 
@@ -912,13 +1103,16 @@ with tab4:
                     if feature in feature_ranges:
                         r = feature_ranges[feature]
                         step = float(r["std"] / 10) if r["std"] > 0 else 0.1
-                        input_dict[feature] = st.slider(
+                        value = st.slider(
                             f"{feature}:",
                             min_value=float(r["min"]),
                             max_value=float(r["max"]),
                             value=float(r["mean"]),
                             step=step,
                         )
+                        input_dict[feature] = value
+                        # Show human-readable value below slider
+                        st.caption(f"Value: {format_human_readable(feature, value)}")
                     elif feature in categorical_options and categorical_options[feature]:
                         input_dict[feature] = st.selectbox(
                             f"{feature}:",
@@ -944,6 +1138,15 @@ with tab4:
                                     model_name.replace("_", " ").title(),
                                     f"{result['prediction']}",
                                     f"Confidence: {conf:.2%}" if conf is not None else "Confidence: N/A",
+                                )
+                                # Log prediction to audit trail
+                                st.session_state.audit_logger.log_prediction(
+                                    prediction=result['prediction'],
+                                    probability=conf if conf is not None else 0.5,
+                                    confidence=conf if conf is not None else 0.5,
+                                    model_name=model_name,
+                                    threshold=0.5,
+                                    feature_values=input_dict
                                 )
                             else:
                                 st.error(f"Error: {result.get('error', 'Unknown')}")
@@ -1071,7 +1274,7 @@ with tab5:
                                 "Prediction": record.get("prediction", ""),
                                 "Confidence": f"{record.get('confidence', 0):.3f}",
                                 "Threshold": record.get("threshold", ""),
-                                "Action": record.get("recommended_action", "")[:50],
+                                "Action": (record.get("recommended_action") or "")[:50],
                             }
                         )
 

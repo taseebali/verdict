@@ -8,6 +8,13 @@ from sklearn.metrics import confusion_matrix, roc_curve, auc
 import plotly.graph_objects as go
 import plotly.express as px
 from typing import Tuple, List
+from pandas.api.types import (
+    is_datetime64_any_dtype,
+    is_bool_dtype,
+    is_numeric_dtype,
+    is_string_dtype,
+    is_object_dtype,
+)
 
 # Set style
 sns.set_style("whitegrid")
@@ -50,40 +57,193 @@ class Visualizer:
 
     @staticmethod
     def plot_feature_distribution(df: pd.DataFrame, column: str, target_col: str = None):
-        """Plot distribution of a feature."""
-        fig = go.Figure()
-        
-        if df[column].dtype in ['int64', 'float64']:
-            # Numeric feature
+        """
+        Backward compatible wrapper.
+        Uses auto_feature_view under the hood.
+        """
+        fig, meta = Visualizer.auto_feature_view(df, column, target_col=target_col)
+        # If None, return an empty figure with a readable title
+        if fig is None:
+            empty = go.Figure()
+            empty.update_layout(
+                title=f"No chart for {column}",
+                xaxis_title="",
+                yaxis_title="",
+            )
+            return empty
+        return fig
+    @staticmethod
+    def _column_profile(df: pd.DataFrame, column: str) -> dict:
+        s = df[column]
+        n = len(s)
+        nunique = int(s.nunique(dropna=True))
+        missing = int(s.isna().sum())
+        unique_ratio = (nunique / n) if n > 0 else 0.0
+
+        # Basic dtype classification
+        dtype_kind = "other"
+        if is_datetime64_any_dtype(s):
+            dtype_kind = "datetime"
+        elif is_bool_dtype(s):
+            dtype_kind = "boolean"
+        elif is_numeric_dtype(s):
+            dtype_kind = "numeric"
+        elif is_string_dtype(s) or is_object_dtype(s):
+            dtype_kind = "categorical"
+        else:
+            dtype_kind = "categorical"
+
+        # Detect "ID-like" columns:
+        # - high uniqueness ratio
+        # - column name contains id-ish tokens
+        name_lower = column.lower()
+        looks_like_id_name = any(tok in name_lower for tok in ["id", "uuid", "guid", "key"])
+        looks_like_id = (unique_ratio >= 0.90 and nunique >= 50) or (looks_like_id_name and unique_ratio >= 0.70)
+
+        # Numeric discreteness: numeric but small number of unique values
+        numeric_discrete = dtype_kind == "numeric" and nunique <= 15
+
+        return {
+            "n": n,
+            "nunique": nunique,
+            "missing": missing,
+            "unique_ratio": unique_ratio,
+            "dtype_kind": dtype_kind,
+            "looks_like_id": looks_like_id,
+            "numeric_discrete": numeric_discrete,
+        }
+
+    @staticmethod
+    def auto_feature_view(
+        df: pd.DataFrame,
+        column: str,
+        target_col: str = None,
+        top_n: int = 20,
+    ):
+        """
+        Automatically choose the best visualization for a selected column.
+
+        Returns:
+            fig (plotly.graph_objects.Figure | None),
+            meta (dict): view_type, reason, notes
+        """
+        prof = Visualizer._column_profile(df, column)
+        s = df[column]
+
+        # 1) ID-like: no chart (best chart is no chart)
+        if prof["looks_like_id"]:
+            return None, {
+                "view_type": "none",
+                "reason": "This column looks like an identifier (almost all values are unique).",
+                "notes": [
+                    "Identifiers are useful for joining tables, not for statistical visualization.",
+                    f"Unique values: {prof['nunique']} out of {prof['n']} rows ({prof['unique_ratio']:.0%} unique).",
+                    "Suggestion: drop this column from training features, or keep only for reference.",
+                ],
+            }
+
+        # 2) Datetime: time trend (counts over time)
+        if prof["dtype_kind"] == "datetime":
+            tmp = df[[column]].copy()
+            tmp = tmp.dropna()
+            tmp["count"] = 1
+            # group by day (simple default)
+            tmp = tmp.set_index(column).resample("D")["count"].sum().reset_index()
+
+            fig = px.line(tmp, x=column, y="count", markers=True, title=f"Events over time: {column}")
+            return fig, {
+                "view_type": "time_series",
+                "reason": "Datetime columns are best shown as trends over time.",
+                "notes": ["You can later add a resample selector (day/week/month)."],
+            }
+
+        # 3) Numeric discrete: bar chart (0/1, small integer sets)
+        if prof["numeric_discrete"]:
+            counts = s.value_counts(dropna=False).reset_index()
+            counts.columns = [column, "count"]
+            fig = px.bar(counts, x=column, y="count", title=f"Value counts: {column}")
+            return fig, {
+                "view_type": "bar_counts",
+                "reason": "This numeric column has few unique values, so a bar chart is clearer than a histogram.",
+                "notes": [f"Unique values: {prof['nunique']}."],
+            }
+
+        # 4) Numeric continuous: histogram (optionally overlay by target)
+        if prof["dtype_kind"] == "numeric":
+            fig = go.Figure()
             if target_col and target_col in df.columns:
-                for label in df[target_col].unique():
+                # overlay hist by class (good for churn / yes-no)
+                for label in sorted(df[target_col].dropna().unique()):
                     mask = df[target_col] == label
-                    fig.add_trace(go.Histogram(
-                        x=df[mask][column],
-                        name=f'{target_col}={label}',
-                        opacity=0.7
-                    ))
+                    fig.add_trace(
+                        go.Histogram(
+                            x=df.loc[mask, column],
+                            name=f"{target_col}={label}",
+                            opacity=0.6,
+                        )
+                    )
+                fig.update_layout(barmode="overlay")
+                reason = "Numeric feature shown as overlapping histograms split by target."
             else:
                 fig.add_trace(go.Histogram(x=df[column], name=column))
-        else:
-            # Categorical feature
-            if target_col and target_col in df.columns:
-                counts = df.groupby([column, target_col]).size().reset_index(name='count')
-                fig = px.bar(counts, x=column, y='count', color=target_col, barmode='group')
-            else:
-                counts = df[column].value_counts().reset_index()
-                counts.columns = [column, 'count']
-                fig = px.bar(counts, x=column, y='count')
-        
-        fig.update_layout(
-            title=f'Distribution of {column}',
-            xaxis_title=column,
-            yaxis_title='Frequency',
-            hovermode='x unified'
-        )
-        
-        return fig
+                reason = "Numeric feature shown as a histogram to reveal distribution shape."
 
+            fig.update_layout(
+                title=f"Distribution of {column}",
+                xaxis_title=column,
+                yaxis_title="Frequency",
+                hovermode="x unified",
+            )
+            return fig, {"view_type": "histogram", "reason": reason, "notes": []}
+
+        # 5) Categorical: choose bar vs top-N
+        # If too many categories, show top-N + 'Other'
+        if prof["dtype_kind"] == "categorical":
+            nunique = prof["nunique"]
+
+            if nunique > top_n:
+                vc = s.value_counts(dropna=False)
+                top = vc.head(top_n)
+                other_count = int(vc.iloc[top_n:].sum())
+                counts = top.reset_index()
+                counts.columns = [column, "count"]
+                if other_count > 0:
+                    counts = pd.concat([counts, pd.DataFrame([{column: "Other", "count": other_count}])], ignore_index=True)
+
+                fig = px.bar(counts, x=column, y="count", title=f"Top {top_n} categories: {column}")
+                return fig, {
+                    "view_type": "topn_bar",
+                    "reason": f"Too many categories ({nunique}). Showing top {top_n} + Other.",
+                    "notes": ["This prevents unreadable charts with hundreds of bars."],
+                }
+
+            # small categorical: grouped by target if available
+            if target_col and target_col in df.columns and target_col != column:
+                counts = df.groupby([column, target_col]).size().reset_index(name="count")
+                fig = px.bar(counts, x=column, y="count", color=target_col, barmode="group",
+                             title=f"{column} by {target_col}")
+                return fig, {
+                    "view_type": "grouped_bar",
+                    "reason": "Categorical feature grouped by target to compare outcomes.",
+                    "notes": [],
+                }
+
+            counts = s.value_counts(dropna=False).reset_index()
+            counts.columns = [column, "count"]
+            fig = px.bar(counts, x=column, y="count", title=f"Category counts: {column}")
+            return fig, {
+                "view_type": "bar",
+                "reason": "Categorical feature with few categories shown as a bar chart.",
+                "notes": [],
+            }
+
+        # Fallback
+        return None, {
+            "view_type": "none",
+            "reason": "No suitable visualization rule matched this column type.",
+            "notes": ["Try converting the column type or selecting a different feature."],
+        }
+    
     @staticmethod
     def plot_metrics_comparison(models_metrics: dict, metric_name: str = 'f1'):
         """Create bar chart comparing metrics across models."""
