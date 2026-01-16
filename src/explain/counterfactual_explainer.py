@@ -11,16 +11,49 @@ class CounterfactualExplainer:
     to flip model predictions. Answers: "What needs to change for a different outcome?"
     """
 
-    def __init__(self, feature_names: List[str], categorical_features: List[str] = None):
+    def __init__(self, feature_names: List[str], categorical_features: List[str] = None, 
+                 scaler=None, feature_ranges: Dict[str, Tuple[float, float]] = None):
         """
         Initialize counterfactual explainer.
 
         Args:
             feature_names: List of feature names
             categorical_features: List of categorical feature names
+            scaler: Fitted StandardScaler for inverse transformations
+            feature_ranges: Dict mapping feature names to (min, max) tuples for original scale
         """
         self.feature_names = feature_names
         self.categorical_features = categorical_features or []
+        self.scaler = scaler
+        self.feature_ranges = feature_ranges or {}
+    
+    def _inverse_scale_value(self, feature_name: str, scaled_value: float) -> float:
+        """
+        Convert a scaled value back to original scale.
+        
+        Args:
+            feature_name: Name of the feature
+            scaled_value: Value in scaled space
+            
+        Returns:
+            Value in original scale, or original scaled_value if no scaler/ranges available
+        """
+        if feature_name not in self.feature_ranges:
+            return scaled_value
+        
+        original_min, original_max = self.feature_ranges[feature_name]
+        original_range = original_max - original_min
+        
+        # Assume StandardScaler: scaled_value = (original - mean) / std
+        # We approximate by assuming: scaled range [-3, 3] maps to [original_min, original_max]
+        # Better: use mean/std from training data if available, else use simple linear mapping
+        
+        # Simple approach: map scaled value back assuming range of ±3 std devs covers data
+        # scaled_range ≈ 6 (from -3 to +3)
+        original_value = original_min + (scaled_value + 3) * (original_range / 6)
+        
+        # Clamp to reasonable range
+        return np.clip(original_value, original_min, original_max)
 
     def find_counterfactual(
         self,
@@ -86,12 +119,23 @@ class CounterfactualExplainer:
                 if new_pred != original_pred:
                     # Found a change that flips prediction
                     change_magnitude = abs(new_value - instance[feature])
+                    
+                    # Convert scaled values back to original scale for display
+                    original_scaled = instance[feature]
+                    new_scaled = new_value
+                    original_unscaled = self._inverse_scale_value(feature, original_scaled)
+                    new_unscaled = self._inverse_scale_value(feature, new_scaled)
+                    change_unscaled = abs(new_unscaled - original_unscaled)
+                    
                     candidates.append(
                         {
                             "feature": feature,
-                            "original_value": instance[feature],
-                            "new_value": new_value,
+                            "original_value": instance[feature],  # Keep for internal use
+                            "new_value": new_value,  # Keep for internal use
+                            "original_value_unscaled": original_unscaled,  # Display this
+                            "new_value_unscaled": new_unscaled,  # Display this
                             "change": change_magnitude,
+                            "change_unscaled": change_unscaled,  # Display this
                             "new_prediction": new_pred,
                             "modified_instance": modified_instance,
                         }
@@ -100,9 +144,14 @@ class CounterfactualExplainer:
         # Sort by smallest change (minimal intervention)
         candidates = sorted(candidates, key=lambda x: x["change"])
 
-        # Build explanation
+        # Build explanation - handle string predictions
+        try:
+            original_pred_int = int(original_pred) if not isinstance(original_pred, str) else int(original_pred.replace('Yes', '1').replace('No', '0')) if original_pred in ['Yes', 'No'] else original_pred
+        except (ValueError, TypeError):
+            original_pred_int = original_pred
+        
         return {
-            "original_prediction": int(original_pred),
+            "original_prediction": original_pred_int,
             "counterfactuals": candidates[:num_features_to_change],
             "num_found": len(candidates),
             "explanation": self._build_explanation(instance, candidates[:num_features_to_change]),
@@ -157,13 +206,18 @@ class CounterfactualExplainer:
                 new_pred = model.predict(X_mod)[0]
 
                 if new_pred != original_pred:
+                    try:
+                        new_pred_int = int(new_pred) if not isinstance(new_pred, str) else int(new_pred.replace('Yes', '1').replace('No', '0')) if new_pred in ['Yes', 'No'] else new_pred
+                    except (ValueError, TypeError):
+                        new_pred_int = new_pred
+                    
                     scenarios.append(
                         {
                             "type": "single_feature",
                             "feature": feature,
                             "original_value": instance[feature],
                             "new_value": new_value,
-                            "new_prediction": int(new_pred),
+                            "new_prediction": new_pred_int,
                             "instance": modified,
                         }
                     )
@@ -174,8 +228,13 @@ class CounterfactualExplainer:
             if len(scenarios) >= num_scenarios:
                 break
 
+        try:
+            original_pred_int = int(original_pred) if not isinstance(original_pred, str) else int(original_pred.replace('Yes', '1').replace('No', '0')) if original_pred in ['Yes', 'No'] else original_pred
+        except (ValueError, TypeError):
+            original_pred_int = original_pred
+        
         return {
-            "original_prediction": int(original_pred),
+            "original_prediction": original_pred_int,
             "scenarios": scenarios[:num_scenarios],
             "num_found": len(scenarios),
         }

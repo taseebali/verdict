@@ -41,3 +41,6 @@ htmlcov/
 
 #custom
 AI_Decision_Copilot.pdf
+.data/datasets.txt
+data/datasets
+PROJECT_DOCUMENTATION.md
