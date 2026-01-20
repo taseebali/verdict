@@ -1,3 +1,12 @@
+---
+title: Verdict
+emoji: "⚖️"
+colorFrom: indigo
+colorTo: purple
+sdk: streamlit
+app_file: app.py
+pinned: false
+---
 #  Verdict
 <!-- 
 **An Intelligent Decision-Support System Powered by AutoML & Explainable AI**
