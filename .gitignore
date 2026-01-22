@@ -43,4 +43,6 @@ htmlcov/
 AI_Decision_Copilot.pdf
 .data/datasets.txt
 data/datasets
-PROJECT_DOCUMENTATION.md
+src/api/app_v2.py
+.gitignore
+

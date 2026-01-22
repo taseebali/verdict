@@ -39,3 +39,16 @@ REGRESSION_METRICS = ["r2", "mae", "rmse", "mape"]
 
 # Cache
 CACHE_DURATION = 3600  # 1 hour in seconds
+
+# REST API Configuration
+API_PORT = 8000
+API_HOST = "0.0.0.0"
+API_DEBUG = False
+
+# Cross-Validation Configuration
+CV_FOLDS = 5
+CV_RANDOM_STATE = RANDOM_SEED
+
+# API Authentication (Phase 3)
+API_AUTH_TOKEN = None  # Set to enable token-based auth
+API_AUTH_ENABLED = False

@@ -1,0 +1,41 @@
+[
+  {
+    "timestamp": "2026-01-20T13:43:07.585580",
+    "prediction": 1,
+    "probability": 0.85,
+    "confidence": 0.82,
+    "confidence_level": "High",
+    "model": "random_forest",
+    "threshold": 0.5,
+    "recommended_action": "Send retention offer",
+    "record_id": 0
+  },
+  {
+    "timestamp": "2026-01-20T13:43:07.585601",
+    "prediction": 0,
+    "probability": 0.32,
+    "confidence": 0.68,
+    "confidence_level": "Medium",
+    "model": "random_forest",
+    "threshold": 0.5,
+    "recommended_action": "Standard outreach",
+    "record_id": 1
+  },
+  {
+    "timestamp": "2026-01-20T13:43:07.585613",
+    "event_type": "threshold_change",
+    "model": "random_forest",
+    "old_threshold": 0.5,
+    "new_threshold": 0.6,
+    "reason": "Balance precision and recall",
+    "changed_by": "admin"
+  },
+  {
+    "timestamp": "2026-01-20T13:43:07.585619",
+    "event_type": "action_taken",
+    "prediction_id": 0,
+    "action": "Sent $50 retention offer",
+    "action_result": "Customer engaged",
+    "actioned_by": "retention_team"
+  }
+]

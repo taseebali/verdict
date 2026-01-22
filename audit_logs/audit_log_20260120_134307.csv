@@ -1,0 +1,5 @@
+timestamp,prediction,probability,confidence,confidence_level,model,threshold,recommended_action,record_id,event_type,old_threshold,new_threshold,reason,changed_by,prediction_id,action,action_result,actioned_by
+2026-01-20T13:43:07.585580,1.0,0.85,0.82,High,random_forest,0.5,Send retention offer,0.0,,,,,,,,,
+2026-01-20T13:43:07.585601,0.0,0.32,0.68,Medium,random_forest,0.5,Standard outreach,1.0,,,,,,,,,
+2026-01-20T13:43:07.585613,,,,,random_forest,,,,threshold_change,0.5,0.6,Balance precision and recall,admin,,,,
+2026-01-20T13:43:07.585619,,,,,,,,,action_taken,,,,,0.0,Sent $50 retention offer,Customer engaged,retention_team

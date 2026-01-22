@@ -1,13 +1,20 @@
 [theme]
-primaryColor = "#3498db"
-backgroundColor = "#f8f9fa"
-secondaryBackgroundColor = "#ecf0f1"
-textColor = "#2c3e50"
+primaryColor = "#FF6B6B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
 font = "sans serif"
 
-[client]
-showErrorDetails = true
-toolbarMode = "minimal"
+[server]
+headless = true
+runOnSave = true
+port = 8501
+maxUploadSize = 200
+enableXsrfProtection = true
 
 [logger]
 level = "info"
+
+[client]
+showErrorDetails = true
+showSidebarNavigation = true
