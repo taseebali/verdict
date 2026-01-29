@@ -30,7 +30,7 @@ Visit `http://localhost:8501` to access the UI.
 
 ---
 
-## Architecture Overview
+## Architecture Overview 
 
 Verdict is structured as a modular pipeline with four core subsystems:
 
