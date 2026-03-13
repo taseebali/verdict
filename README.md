@@ -1,4 +1,4 @@
-# Verdict - ML Pipeline Foundation
+<!-- # Verdict - ML Pipeline Foundation
 
 **An intelligent ML pipeline for binary & multiclass classification with comprehensive data validation.**
 
@@ -195,4 +195,4 @@ Key priorities:
 
 ---
 
-**Questions?** See [PHASE_1_HANDOFF.md](PHASE_1_HANDOFF.md) or [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+**Questions?** See [PHASE_1_HANDOFF.md](PHASE_1_HANDOFF.md) or [QUICK_REFERENCE.md](QUICK_REFERENCE.md) -->

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from src.core.pipeline import MLPipeline
+from src.core.formatters import format_value
 from src.decision.decision_audit_logger import DecisionAuditLogger
 from config.settings import MODEL_CONFIGS, RANDOM_SEED
 from .schemas import (
@@ -49,37 +50,6 @@ pipeline = None
 audit_logger = None
 feature_recommendations = None
 feature_ranges = None
-
-
-def format_value(feature_name: str, value: float) -> str:
-    """Convert model values to human-readable format.
-    
-    Examples:
-        - monthlyCharges: $89.50
-        - churnRate: 12.5%
-        - tenure: 24 months
-        - age: 35 years
-    """
-    feature_lower = feature_name.lower()
-    
-    # Currency
-    if any(x in feature_lower for x in ['charge', 'cost', 'price', 'payment', 'income', 'monthly']):
-        return f"${value:,.2f}"
-    
-    # Percentage
-    if any(x in feature_lower for x in ['percent', 'rate', 'ratio']):
-        return f"{value:.1f}%"
-    
-    # Months/Years
-    if any(x in feature_lower for x in ['tenure', 'months']):
-        return f"{int(value)} months"
-    
-    # Age
-    if 'age' in feature_lower:
-        return f"{int(value)} years"
-    
-    # Default
-    return f"{value:.2f}"
 
 
 def generate_feature_recommendations(df: pd.DataFrame) -> Dict:

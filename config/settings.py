@@ -1,52 +1,41 @@
-# Model hyperparameters
-RANDOM_SEED = 42
-TEST_SIZE = 0.2
-VAL_SIZE = 0.1
+"""Project configuration - imports from core constants for centralization."""
 
-# Model configurations
+# Import core constants to maintain single source of truth
+from src.core.constants import (
+    RANDOM_SEED,
+    TEST_SIZE,
+    VAL_SIZE,
+    CV_FOLDS,
+    MISSING_VALUE_THRESHOLD,
+    NUMERIC_FEATURES_DTYPE,
+    CATEGORICAL_FEATURES_DTYPE,
+    MAX_FILE_SIZE_MB,
+    ALLOWED_FILE_EXTENSIONS,
+    CACHE_DURATION_SECONDS,
+    API_PORT,
+    API_HOST,
+    API_DEBUG,
+    LOGISTIC_REGRESSION_PARAMS,
+    RANDOM_FOREST_PARAMS,
+    CLASSIFICATION_METRICS,
+    REGRESSION_METRICS,
+)
+
+# Model configurations (backward compatible with existing code)
 MODEL_CONFIGS = {
     "logistic_regression": {
         "name": "Logistic Regression",
-        "params": {
-            "max_iter": 1000,
-            "random_state": RANDOM_SEED,
-            "solver": "lbfgs",
-        },
+        "params": LOGISTIC_REGRESSION_PARAMS,
     },
     "random_forest": {
         "name": "Random Forest",
-        "params": {
-            "n_estimators": 100,
-            "max_depth": 10,
-            "random_state": RANDOM_SEED,
-            "n_jobs": -1,
-        },
+        "params": RANDOM_FOREST_PARAMS,
     },
 }
 
-# Data preprocessing
-MISSING_VALUE_THRESHOLD = 0.5  # Drop columns with >50% missing values
-NUMERIC_FEATURES_DTYPE = ["int64", "float64"]
-CATEGORICAL_FEATURES_DTYPE = ["object", "category"]
-
-# File upload
-MAX_FILE_SIZE_MB = 100
-ALLOWED_EXTENSIONS = ["csv"]
-
-# Evaluation
-CLASSIFICATION_METRICS = ["accuracy", "precision", "recall", "f1", "roc_auc"]
-REGRESSION_METRICS = ["r2", "mae", "rmse", "mape"]
-
-# Cache
-CACHE_DURATION = 3600  # 1 hour in seconds
-
-# REST API Configuration
-API_PORT = 8000
-API_HOST = "0.0.0.0"
-API_DEBUG = False
-
-# Cross-Validation Configuration
-CV_FOLDS = 5
+# Backward compatibility aliases
+ALLOWED_EXTENSIONS = ALLOWED_FILE_EXTENSIONS
+CACHE_DURATION = CACHE_DURATION_SECONDS
 CV_RANDOM_STATE = RANDOM_SEED
 
 # API Authentication (Phase 3)

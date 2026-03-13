@@ -1,9 +1,12 @@
-"""Streamlit Data Explorer Page"""
+"""Streamlit Data Explorer Page - Refactored with Components"""
 
+import os
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add project root to path for imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import streamlit as st
 import pandas as pd
@@ -13,8 +16,9 @@ import plotly.graph_objects as go
 from io import StringIO
 
 from src.ui.session_manager import init_session_state
-from src.ui.utils import load_demo_dataset, render_error_message
+from src.ui.utils import validate_dataset
 from src.ui.charts import plot_data_distribution, plot_correlation_heatmap
+from src.ui.components import DataLoadingComponent, DataQualityComponent
 
 # Configure page FIRST (must be first Streamlit command)
 st.set_page_config(
@@ -28,50 +32,17 @@ init_session_state()
 
 st.title("📊 Data Explorer")
 
-# ===== DATA LOADING =====
-st.markdown("## 📤 Load Your Data")
+# ===== DATA LOADING (Using Component) =====
+loader = DataLoadingComponent()
+df = loader.render()
 
-col1, col2 = st.columns(2)
+if df is None:
+    st.warning("⚠️ Please load data using buttons above")
+    st.stop()
 
-with col1:
-    if st.button("📁 Use Demo Dataset", use_container_width=True):
-        try:
-            df = load_demo_dataset()
-            st.session_state.df = df
-            st.success("✅ Demo dataset loaded (10,000 rows)")
-        except FileNotFoundError:
-            st.error("⚠️ Demo dataset not found")
-            st.stop()
-
-with col2:
-    uploaded_file = st.file_uploader("📥 Or upload your CSV", type=['csv'])
-    if uploaded_file is not None:
-        try:
-            df = pd.read_csv(uploaded_file)
-            st.session_state.df = df
-            st.success(f"✅ Loaded {uploaded_file.name} ({len(df):,} rows)")
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
-
-# Load data from session or default to demo
-if 'df' not in st.session_state or st.session_state.df is None:
-    try:
-        st.session_state.df = load_demo_dataset()
-    except:
-        st.warning("⚠️ Please load data using buttons above")
-        st.stop()
-
-df = st.session_state.df
-
-# ===== DATA QUALITY CHECKS =====
-from src.ui.utils import validate_dataset
-
-quality_metrics = validate_dataset(df)
-
-if quality_metrics['warnings']:
-    st.warning("🔍 **Data Quality Insights:**")
-    for warning in quality_metrics['warnings']:
-        st.caption(warning)
+# ===== DATA QUALITY CHECKS (Using Component) =====
+quality = DataQualityComponent(df)
+quality.render()
 
 # ===== OVERVIEW =====
 st.markdown("## 📋 Dataset Overview")
@@ -94,7 +65,7 @@ with col4:
 st.markdown("## 🔍 Data Preview")
 
 preview_rows = st.slider("Rows to display:", min_value=5, max_value=50, value=10, key="preview_rows_tab1")
-st.dataframe(df.head(preview_rows), use_container_width=True)
+st.dataframe(df.head(preview_rows), width='stretch')
 
 # ===== DATA TYPES & INFO =====
 st.markdown("## 📌 Column Information")
@@ -109,12 +80,12 @@ for col in df.columns:
         "Missing": f"{(df[col].isnull().sum() / len(df) * 100):.1f}%"
     })
 
-st.dataframe(pd.DataFrame(col_info), use_container_width=True)
+st.dataframe(pd.DataFrame(col_info), width='stretch')
 
 # ===== STATISTICS =====
 st.markdown("## 📊 Statistical Summary")
 
-st.dataframe(df.describe(), use_container_width=True)
+st.dataframe(df.describe(), width='stretch')
 
 # ===== VISUALIZATIONS =====
 st.markdown("## 📈 Visualizations")
@@ -155,7 +126,7 @@ with tab3:
             yaxis_title="Count",
             height=400
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         st.markdown(f"**{target} Distribution:**")
         for idx, (val, count) in enumerate(target_counts.items()):
@@ -174,7 +145,7 @@ if missing.sum() > 0:
         "Missing Count": missing[missing > 0].values,
         "Percentage": (missing[missing > 0].values / len(df) * 100).round(2)
     })
-    st.dataframe(missing_df, use_container_width=True)
+    st.dataframe(missing_df, width='stretch')
 else:
     st.success("✅ No missing values!")
 

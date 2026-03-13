@@ -3,12 +3,15 @@ Verdict ML Platform - Home Page
 Streamlined 5-step workflow for ML model building
 """
 
+import os
+import sys
 import streamlit as st
 from pathlib import Path
-import sys
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from src.ui.session_manager import init_session_state
 

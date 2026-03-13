@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import warnings
 from typing import Dict, Tuple, List, Any, Optional
+import logging
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,10 @@ import shap
 from sklearn.inspection import permutation_importance
 import matplotlib.pyplot as plt
 
+from ..core.cache_manager import CacheManager
+
 warnings.filterwarnings("ignore")
+logger = logging.getLogger(__name__)
 
 
 class ExplainabilityAnalyzer:
@@ -129,6 +133,57 @@ class ExplainabilityAnalyzer:
             return dict(sorted(importance_dict.items(), key=lambda x: x[1], reverse=True))
         except Exception as e:
             print(f"Error calculating permutation importance: {e}")
+            return {}
+
+    def get_feature_importance(
+        self, model_name: str = "model", use_cache: bool = True
+    ) -> Dict[str, float]:
+        """
+        Get feature importance with optional caching.
+
+        Args:
+            model_name: Name of the model (for cache key)
+            use_cache: Whether to use cached importance if available
+
+        Returns:
+            Dictionary of feature importance scores, sorted by importance
+        """
+        # Check cache first if enabled
+        if use_cache:
+            cached_importance = CacheManager.get_cached_importance(
+                model_name, self.feature_names
+            )
+            if cached_importance is not None:
+                return cached_importance
+
+        # Compute importance (permutation for now, can use SHAP-based later)
+        try:
+            result = permutation_importance(
+                self.model,
+                self.X_test,
+                # Use model predictions as target since we may not have true labels
+                self.model.predict(self.X_test),
+                n_repeats=10,
+                random_state=42,
+                scoring="accuracy",
+                n_jobs=-1,
+            )
+            importance_dict = dict(zip(self.feature_names, result.importances_mean))
+            importance_dict = dict(
+                sorted(importance_dict.items(), key=lambda x: x[1], reverse=True)
+            )
+
+            # Cache the computed importance
+            if use_cache:
+                cache_key = CacheManager.get_cache_key(model_name, self.feature_names)
+                CacheManager.cache_importance(model_name, self.feature_names, importance_dict)
+                CacheManager.register_model_cache(model_name, cache_key)
+
+            logger.info(f"Computed feature importance for model '{model_name}'")
+            return importance_dict
+
+        except Exception as e:
+            logger.error(f"Error calculating feature importance: {e}")
             return {}
 
     # -------------------------

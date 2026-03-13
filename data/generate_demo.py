@@ -20,14 +20,14 @@ def generate_realistic_dataset(n_samples=5000):
     n_loyal = int(n_samples * 0.30)
     loyal = {
         "tenure_months": np.random.randint(36, 72, n_loyal),
-        "contract_type": ["Two year"] * n_loyal,
+        "contract_type": np.array(["Two year"] * n_loyal),
         "monthly_charges": np.random.uniform(60, 100, n_loyal),
         "online_security": np.ones(n_loyal, dtype=int),
         "tech_support": np.ones(n_loyal, dtype=int),
         "payment_method": np.random.choice(["Bank transfer", "Credit card"], n_loyal),
         "paperless_billing": np.ones(n_loyal, dtype=int),
         "senior_citizen": np.random.choice([0, 1], n_loyal, p=[0.85, 0.15]),
-        "churn_base_prob": 0.05  # Only 5% base churn rate
+        "churn_base_prob": np.full(n_loyal, 0.05)  # ✅ FIX: Array instead of scalar
     }
     
     # Segment 2: New customers (25%) - MEDIUM churn
@@ -41,21 +41,21 @@ def generate_realistic_dataset(n_samples=5000):
         "payment_method": np.random.choice(["Electronic check", "Mailed check"], n_new),
         "paperless_billing": np.random.choice([0, 1], n_new, p=[0.4, 0.6]),
         "senior_citizen": np.random.choice([0, 1], n_new, p=[0.90, 0.10]),
-        "churn_base_prob": 0.35  # 35% base churn rate
+        "churn_base_prob": np.full(n_new, 0.35)  # ✅ FIX: Array instead of scalar
     }
     
     # Segment 3: At-risk customers (20%) - HIGH churn
     n_risk = int(n_samples * 0.20)
     risk = {
         "tenure_months": np.random.randint(6, 24, n_risk),
-        "contract_type": ["Month-to-month"] * n_risk,
-        "monthly_charges": np.random.uniform(70, 120, n_risk),  # High prices
-        "online_security": np.zeros(n_risk, dtype=int),  # No protection
+        "contract_type": np.array(["Month-to-month"] * n_risk),
+        "monthly_charges": np.random.uniform(70, 120, n_risk),
+        "online_security": np.zeros(n_risk, dtype=int),
         "tech_support": np.zeros(n_risk, dtype=int),
-        "payment_method": ["Electronic check"] * n_risk,  # Risky payment
+        "payment_method": np.array(["Electronic check"] * n_risk),
         "paperless_billing": np.ones(n_risk, dtype=int),
         "senior_citizen": np.random.choice([0, 1], n_risk, p=[0.70, 0.30]),
-        "churn_base_prob": 0.65  # 65% base churn rate
+        "churn_base_prob": np.full(n_risk, 0.65)  # ✅ FIX: Array instead of scalar
     }
     
     # Segment 4: Mid-tier stable (25%) - LOW-MEDIUM churn
@@ -69,7 +69,7 @@ def generate_realistic_dataset(n_samples=5000):
         "payment_method": np.random.choice(["Bank transfer", "Credit card", "Mailed check"], n_mid),
         "paperless_billing": np.random.choice([0, 1], n_mid),
         "senior_citizen": np.random.choice([0, 1], n_mid, p=[0.88, 0.12]),
-        "churn_base_prob": 0.20  # 20% base churn rate
+        "churn_base_prob": np.full(n_mid, 0.20)  # ✅ FIX: Array instead of scalar
     }
     
     # === STEP 2: Combine all segments ===

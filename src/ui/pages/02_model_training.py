@@ -1,8 +1,12 @@
 """Streamlit Model Training Page - WORKING VERSION"""
 
+import os
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# Add project root to path for imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import streamlit as st
 import pandas as pd
@@ -16,15 +20,14 @@ import plotly.express as px
 from src.ui.utils import load_demo_dataset, get_feature_statistics
 from src.ui.session_manager import init_session_state
 from src.ui.charts import plot_feature_importance
+from src.ui.components import DataLoadingComponent, TargetColumnSelector, FeatureSelector, ModelPerformanceComponent
+from src.core.ml_operations import EnsembleManager
 
 st.set_page_config(page_title="Train Model", page_icon="🤖", layout="wide")
 
 # Initialize session state FIRST
 init_session_state()
 st.title("🤖 Train Model")
-
-# Initialize session state
-init_session_state()
 
 # Ensure data is loaded
 if st.session_state.df is None:
@@ -36,65 +39,16 @@ df = st.session_state.df
 st.markdown(f"**Dataset:** {len(df):,} rows × {len(df.columns)} columns")
 
 # ===== STEP 1: SELECT TARGET =====
-st.markdown("## 1️⃣ Select What to Predict (Target Column)")
+target_selector = TargetColumnSelector(df)
+target_col, unique_count = target_selector.render()
 
-# Auto-detect good target columns
-numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+if target_col is None:
+    st.error("❌ Please select a target column")
+    st.stop()
 
-# Find columns with 2-10 unique values (good for classification)
-target_candidates = []
-for col in df.columns:
-    unique_count = df[col].nunique()
-    if 2 <= unique_count <= 10:
-        target_candidates.append(f"{col} ({unique_count} classes)")
-
-if target_candidates:
-    selected_target = st.selectbox(
-        "Select target column:",
-        target_candidates,
-        help="Column with 2-10 unique values works best"
-    )
-    target_col = selected_target.split(" (")[0]
-else:
-    target_col = st.selectbox("Select target column:", df.columns)
-
-st.info(f"✓ Target: **{target_col}** ({df[target_col].nunique()} unique values)")
-
-# ===== STEP 2: EXCLUDE COLUMNS =====
-st.markdown("## 2️⃣ Select Columns to EXCLUDE")
-
-st.markdown("**Why exclude columns?**")
-st.markdown("""
-- **IDs** (customer_id): Just identifiers, not predictive
-- **Dates** (signup_date): When things happened, not useful
-- **Timestamps**: When data was recorded, not predictive
-""")
-
-# Auto-detect columns to exclude
-exclude_patterns = ["_id", "customer", "date", "time", "index"]
-auto_exclude = []
-for col in df.columns:
-    col_lower = col.lower()
-    if any(pattern in col_lower for pattern in exclude_patterns):
-        auto_exclude.append(col)
-
-st.markdown(f"**Auto-detected to exclude:** {', '.join(auto_exclude) if auto_exclude else 'None'}")
-
-exclude_cols = st.multiselect(
-    "Choose columns to exclude:",
-    [c for c in df.columns if c != target_col],
-    default=auto_exclude + [target_col] if target_col in auto_exclude else [],
-    help="Columns will NOT be used for training"
-)
-
-# Get feature columns
-feature_cols = [c for c in df.columns if c != target_col and c not in exclude_cols]
-
-# Filter to numeric only (easier to train)
-numeric_feature_cols = [c for c in feature_cols if df[c].dtype in ['int64', 'int32', 'float64', 'float32']]
-
-st.info(f"✓ Features: **{len(numeric_feature_cols)}** columns | Excluded: **{len(exclude_cols)}** columns")
+# ===== STEP 2: SELECT FEATURES =====
+feature_selector = FeatureSelector(df, target_col)
+numeric_feature_cols = feature_selector.render()
 
 if len(numeric_feature_cols) == 0:
     st.error("❌ No numeric features available for training")
@@ -130,10 +84,43 @@ with col4:
 if use_cv:
     n_folds = st.slider("Number of folds:", 3, 10, 5)
 
+# ===== STEP 3B: SELECT ENSEMBLE METHOD =====
+st.markdown("## 3️⃣B Select Training Method")
+
+col_method1, col_method2 = st.columns([3, 1])
+
+with col_method1:
+    ensemble_manager = EnsembleManager()
+    available_methods = ensemble_manager.available_methods
+    
+    method_descriptions = {
+        'random_forest': '🌲 Random Forest (baseline, fast, interpretable)',
+        'xgboost': '⚡ XGBoost (fast, accurate, gradient boosting)',
+        'lightgbm': '💡 LightGBM (very fast, memory efficient)',
+        'voting': '🗳️ Voting Ensemble (combines multiple models)',
+        'stacking': '📚 Stacking (meta-learner approach, more complex)'
+    }
+    
+    method_display = [method_descriptions.get(m, m) for m in available_methods if m in method_descriptions]
+    selected_method_display = st.selectbox(
+        "Select training method:",
+        method_display,
+        help="Different methods have different speed/accuracy tradeoffs"
+    )
+    # Extract method name from display string
+    training_method = 'random_forest'
+    for method in available_methods:
+        if method_descriptions.get(method, '') == selected_method_display:
+            training_method = method
+            break
+
+with col_method2:
+    use_ensemble_tuning = st.checkbox("Tune params", value=False, help="Hyperparameter tuning for gradient boosting")
+
 # ===== STEP 4: TRAIN =====
 st.markdown("## 4️⃣ Train Model")
 
-if st.button("🚀 TRAIN MODEL", type="primary", use_container_width=True):
+if st.button("🚀 TRAIN MODEL", type="primary", width='stretch'):
     progress_bar = st.progress(0)
     status_text = st.empty()
     
@@ -142,15 +129,26 @@ if st.button("🚀 TRAIN MODEL", type="primary", use_container_width=True):
         status_text.write("📊 **Step 1/4:** Preparing data...")
         progress_bar.progress(25)
         
-        # Prepare data
+        # Prepare data - start with selected features
         X = df[numeric_feature_cols].copy()
         y = df[target_col].copy()
         
+        # Encode categorical features in X
+        from sklearn.preprocessing import LabelEncoder as LE
+        label_encoders = {}
+        for col in X.columns:
+            if X[col].dtype == 'object':  # If categorical
+                le = LE()
+                X[col] = le.fit_transform(X[col].astype(str))
+                label_encoders[col] = le
+                st.info(f"✅ Encoded '{col}': {len(le.classes_)} unique values")
+        
         # Encode target if needed
         if y.dtype == 'object':
-            le = LabelEncoder()
+            le = LE()
             y = le.fit_transform(y)
             st.session_state.label_encoder = le
+            st.session_state.label_encoders = label_encoders
         
         # Step 2: Split data
         status_text.write("✂️ **Step 2/4:** Splitting train/test...")
@@ -168,51 +166,107 @@ if st.button("🚀 TRAIN MODEL", type="primary", use_container_width=True):
         status_text.write("🤖 **Step 3/4:** Training model...")
         progress_bar.progress(75)
         
-        # Train
-        model = RandomForestClassifier(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            random_state=42,
-            n_jobs=-1
-        )
-        model.fit(X_train, y_train)
-        
-        # Step 4: Evaluate
-        status_text.write("📈 **Step 4/4:** Evaluating performance...")
-        progress_bar.progress(95)
-        
-        # Evaluate
-        train_acc = accuracy_score(y_train, model.predict(X_train))
-        test_acc = accuracy_score(y_test, model.predict(X_test))
-        y_pred = model.predict(X_test)
-        test_precision = precision_score(y_test, y_pred, average='weighted', zero_division=0)
-        test_recall = recall_score(y_test, y_pred, average='weighted', zero_division=0)
-        test_f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
-        
-        # Cross-validation if enabled
-        cv_scores = None
-        if use_cv:
-            from sklearn.model_selection import cross_validate
-            status_text.write(f"🔄 **Bonus:** Running {n_folds}-fold cross-validation...")
-            cv_results = cross_validate(
-                model, X, y,
-                cv=n_folds,
-                scoring=['accuracy', 'precision_weighted', 'recall_weighted', 'f1_weighted'],
+        # Train using selected method
+        if training_method == 'random_forest':
+            model = RandomForestClassifier(
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                random_state=42,
                 n_jobs=-1
             )
-            cv_scores = {
-                'accuracy': (cv_results['test_accuracy'].mean(), cv_results['test_accuracy'].std()),
-                'precision': (cv_results['test_precision_weighted'].mean(), cv_results['test_precision_weighted'].std()),
-                'recall': (cv_results['test_recall_weighted'].mean(), cv_results['test_recall_weighted'].std()),
-                'f1': (cv_results['test_f1_weighted'].mean(), cv_results['test_f1_weighted'].std())
-            }
+            model.fit(X_train, y_train)
+        else:
+            # Use EnsembleManager for other methods
+            try:
+                ensemble_result = None
+                if use_ensemble_tuning and training_method in ['xgboost', 'lightgbm']:
+                    ensemble_result = ensemble_manager.train_with_tuning(
+                        training_method,
+                        X_train, X_test, y_train, y_test,
+                        cv=3,
+                        param_grid_preset='balanced'
+                    )
+                elif training_method == 'xgboost':
+                    ensemble_result = ensemble_manager.train_xgboost(X_train, X_test, y_train, y_test)
+                elif training_method == 'lightgbm':
+                    ensemble_result = ensemble_manager.train_lightgbm(X_train, X_test, y_train, y_test)
+                elif training_method == 'voting':
+                    ensemble_result = ensemble_manager.train_voting(X_train, X_test, y_train, y_test)
+                elif training_method == 'stacking':
+                    ensemble_result = ensemble_manager.train_stacking(X_train, X_test, y_train, y_test)
+                
+                if ensemble_result:
+                    model = ensemble_result.model
+                    train_acc = ensemble_result.train_score
+                    test_acc = ensemble_result.test_score
+                    test_precision = ensemble_result.precision
+                    test_recall = ensemble_result.recall
+                    test_f1 = ensemble_result.f1
+                    # Skip to evaluation step
+                    progress_bar.progress(95)
+                    status_text.write("📈 **Step 4/4:** Evaluating performance...")
+                    
+                    cv_scores = ensemble_result.cv_scores
+                    y_pred = model.predict(X_test)
+                    
+                    # Store ensemble info
+                    st.session_state.ensemble_method = training_method
+                    st.session_state.ensemble_params = ensemble_result.params
+                    
+                    # Skip standard evaluation since ensemble already did it
+                    progress_bar.progress(100)
+                    status_text.write("✅ **Complete:** Model trained successfully!")
+            except Exception as e:
+                st.error(f"Ensemble training failed: {str(e)}")
+                st.info("💡 Falling back to Random Forest...")
+                model = RandomForestClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=42,
+                    n_jobs=-1
+                )
+                model.fit(X_train, y_train)
+                ensemble_result = None  # Reset ensemble result for standard evaluation
         
-        progress_bar.progress(100)
-        status_text.write("✅ **Complete:** Model trained successfully!")
+        # Step 4: Evaluate (skip if ensemble already computed)
+        if 'train_acc' not in locals():  # Only evaluate if not already done by ensemble
+            status_text.write("📈 **Step 4/4:** Evaluating performance...")
+            progress_bar.progress(95)
+            
+            # Evaluate
+            train_acc = accuracy_score(y_train, model.predict(X_train))
+            test_acc = accuracy_score(y_test, model.predict(X_test))
+            y_pred = model.predict(X_test)
+            test_precision = precision_score(y_test, y_pred, average='weighted', zero_division=0)
+            test_recall = recall_score(y_test, y_pred, average='weighted', zero_division=0)
+            test_f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+            
+            # Cross-validation if enabled
+            cv_scores = None
+            if use_cv:
+                from sklearn.model_selection import cross_validate
+                status_text.write(f"🔄 **Bonus:** Running {n_folds}-fold cross-validation...")
+                cv_results = cross_validate(
+                    model, X, y,
+                    cv=n_folds,
+                    scoring=['accuracy', 'precision_weighted', 'recall_weighted', 'f1_weighted'],
+                    n_jobs=-1
+                )
+                cv_scores = {
+                    'accuracy': (cv_results['test_accuracy'].mean(), cv_results['test_accuracy'].std()),
+                    'precision': (cv_results['test_precision_weighted'].mean(), cv_results['test_precision_weighted'].std()),
+                    'recall': (cv_results['test_recall_weighted'].mean(), cv_results['test_recall_weighted'].std()),
+                    'f1': (cv_results['test_f1_weighted'].mean(), cv_results['test_f1_weighted'].std())
+                }
+            
+            progress_bar.progress(100)
+            status_text.write("✅ **Complete:** Model trained successfully!")
         
         # Save to session
         st.session_state.trained_model = model
-        st.session_state.model_features = numeric_feature_cols
+        st.session_state.model_features = list(X.columns)  # Store actual trained columns (after encoding)
+        st.session_state.selected_features = numeric_feature_cols  # Store original feature selection
+        st.session_state.label_encoders = label_encoders  # Store encoders for prediction
         st.session_state.target_column = target_col
         st.session_state.X_test = X_test
         st.session_state.y_test = y_test
@@ -277,18 +331,15 @@ if st.button("🚀 TRAIN MODEL", type="primary", use_container_width=True):
 if st.session_state.trained_model is not None:
     st.markdown("## ✨ Comprehensive Training Results")
     
-    # ===== QUICK METRICS =====
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.metric("Test Accuracy", f"{st.session_state.test_acc:.2%}")
-    with col2:
-        st.metric("Precision (W)", f"{st.session_state.test_precision:.2%}")
-    with col3:
-        st.metric("Recall (W)", f"{st.session_state.test_recall:.2%}")
-    with col4:
-        st.metric("F1-Score (W)", f"{st.session_state.test_f1:.2%}")
-    with col5:
-        st.metric("Features Used", len(st.session_state.model_features))
+    # Use ModelPerformanceComponent for results display
+    metrics_dict = {
+        "Test Accuracy": st.session_state.test_acc,
+        "Precision": st.session_state.test_precision,
+        "Recall": st.session_state.test_recall,
+        "F1-Score": st.session_state.test_f1
+    }
+    perf_component = ModelPerformanceComponent(metrics_dict)
+    perf_component.render()
     
     st.markdown("---")
     
@@ -306,28 +357,28 @@ if st.session_state.trained_model is not None:
             st.markdown("**Classification Metrics**")
             metrics_data = pd.DataFrame({
                 "Metric": ["Accuracy", "Precision", "Recall", "F1-Score"],
-                "Train": [f"{st.session_state.train_acc:.2%}", "—", "—", "—"],
-                "Test": [
-                    f"{st.session_state.test_acc:.2%}",
-                    f"{st.session_state.test_precision:.2%}",
-                    f"{st.session_state.test_recall:.2%}",
-                    f"{st.session_state.test_f1:.2%}"
+                "Train (%)": [st.session_state.train_acc * 100, None, None, None],
+                "Test (%)": [
+                    st.session_state.test_acc * 100,
+                    st.session_state.test_precision * 100,
+                    st.session_state.test_recall * 100,
+                    st.session_state.test_f1 * 100
                 ]
             })
-            st.dataframe(metrics_data, hide_index=True, use_container_width=True)
+            st.dataframe(metrics_data, hide_index=True, width='stretch')
         
         with col_m2:
             st.markdown("**Model Configuration**")
             config_data = pd.DataFrame({
-                "Parameter": ["Number of Trees", "Max Depth", "Test Size", "Features"],
+                "Parameter": ["Number of Trees", "Max Depth", "Test Size (%)", "Features"],
                 "Value": [
                     n_estimators,
                     max_depth,
-                    f"{int(test_size*100)}%",
+                    int(test_size*100),
                     len(st.session_state.model_features)
                 ]
             })
-            st.dataframe(config_data, hide_index=True, use_container_width=True)
+            st.dataframe(config_data, hide_index=True, width='stretch')
         
         # Display CV results if available
         if st.session_state.get('cv_scores') is not None:
@@ -349,15 +400,19 @@ if st.session_state.trained_model is not None:
                     f"± {cv_scores['f1'][1]:.2%}"
                 ]
             })
-            st.dataframe(cv_data, hide_index=True, use_container_width=True)
+            st.dataframe(cv_data, hide_index=True, width='stretch')
             st.caption("Cross-validation provides a more robust estimate of model performance across different data splits.")
         
         st.markdown("### Feature Importance")
-        importance_dict = dict(zip(
-            st.session_state.model_features,
-            st.session_state.trained_model.feature_importances_
-        ))
-        plot_feature_importance(importance_dict)
+        # Check if model has feature importance (some ensemble models don't)
+        if hasattr(st.session_state.trained_model, 'feature_importances_'):
+            importance_dict = dict(zip(
+                st.session_state.model_features,
+                st.session_state.trained_model.feature_importances_
+            ))
+            plot_feature_importance(importance_dict)
+        else:
+            st.info("ℹ️ This model type doesn't support feature importance.")
     
     # ===== TAB 2: BEST MODEL =====
     with tab2:
@@ -425,7 +480,7 @@ if st.session_state.trained_model is not None:
                     })
                 
                 comparison_df = pd.DataFrame(comparison_data)
-                st.dataframe(comparison_df, hide_index=True, use_container_width=True)
+                st.dataframe(comparison_df, hide_index=True, width='stretch')
                 
                 # Visualization - Performance metrics over time
                 st.markdown("**Performance Trend**")
@@ -443,7 +498,7 @@ if st.session_state.trained_model is not None:
                 fig = px.line(trend_df, x="Model #", y=["F1-Score", "Accuracy", "Precision", "Recall"], 
                              markers=True, title="Model Performance Trend",
                              labels={"value": "Score", "variable": "Metric"})
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("💡 Train another model with different parameters to compare")
         except Exception as e:
@@ -472,7 +527,7 @@ if st.session_state.trained_model is not None:
                     })
                 
                 history_df = pd.DataFrame(history_data)
-                st.dataframe(history_df, hide_index=True, use_container_width=True)
+                st.dataframe(history_df, hide_index=True, width='stretch')
                 
                 col_h1, col_h2, col_h3 = st.columns(3)
                 with col_h1:

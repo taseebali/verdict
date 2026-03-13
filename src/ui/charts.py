@@ -22,7 +22,7 @@ def plot_data_distribution(df: pd.DataFrame, column: str, title: str = None) -> 
     )
     
     fig.update_layout(showlegend=False, height=400, hovermode='x unified')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def plot_correlation_heatmap(df: pd.DataFrame, max_features: int = 15, title: str = "Feature Correlation Matrix") -> None:
@@ -49,7 +49,7 @@ def plot_correlation_heatmap(df: pd.DataFrame, max_features: int = 15, title: st
     )
     
     fig.update_layout(title=title, height=500, xaxis_title="Features", yaxis_title="Features")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def plot_feature_importance(importances: Dict[str, float], top_n: int = 15, title: str = "Top Features by Importance") -> None:
@@ -66,7 +66,7 @@ def plot_feature_importance(importances: Dict[str, float], top_n: int = 15, titl
     )
     
     fig.update_layout(title=title, xaxis_title="Importance Score", height=400, showlegend=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def plot_whatif_analysis(
@@ -97,7 +97,7 @@ def plot_whatif_analysis(
         hovermode='x unified'
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def plot_prediction_distribution(predictions: List[float], actual: List[int] = None, title: str = "Prediction Confidence Distribution") -> None:
@@ -114,4 +114,4 @@ def plot_prediction_distribution(predictions: List[float], actual: List[int] = N
         template='plotly_white'
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')

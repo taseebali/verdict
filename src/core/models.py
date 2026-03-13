@@ -9,6 +9,8 @@ from typing import Dict, Any, Tuple, Optional, List
 from config.settings import MODEL_CONFIGS, RANDOM_SEED
 import logging
 
+from .hyperparameter_tuner import HyperparameterTuner
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +75,74 @@ class ModelManager:
             "train_score": train_score,
             "status": "success",
         }
+
+    def train_with_tuning(
+        self,
+        model_name: str,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        fast_tuning: bool = False,
+        cv_folds: int = 5,
+        cache_results: bool = True,
+    ) -> Dict[str, Any]:
+        """Train a model with hyperparameter tuning.
+        
+        Args:
+            model_name: Name of the model to train
+            X_train: Training features
+            y_train: Training target
+            fast_tuning: Use faster (smaller) parameter grid
+            cv_folds: Number of cross-validation folds
+            cache_results: Cache tuned parameters
+        
+        Returns:
+            Training info dictionary with tuning results
+        """
+        logger.info(f"Starting hyperparameter tuning for '{model_name}'")
+        
+        tuner = HyperparameterTuner(n_jobs=-1, cv_folds=cv_folds, verbose=1)
+        
+        try:
+            # Tune the model
+            best_params, best_model, cv_results = tuner.tune_model(
+                model_name,
+                X_train,
+                y_train,
+                task_type=self.task_type,
+                fast=fast_tuning,
+            )
+            
+            # Store the best model
+            self.models[model_name] = best_model
+            train_score = best_model.score(X_train, y_train)
+            
+            self.model_history[model_name] = {
+                "model": best_model,
+                "train_score": train_score,
+                "best_params": best_params,
+                "tuning_cv_score": tuner.last_results.get("best_score"),
+                "tuned": True,
+            }
+            
+            # Cache tuning results if requested
+            if cache_results:
+                tuner.cache_tuning_results(model_name, self.task_type, best_params)
+            
+            logger.info(f"Hyperparameter tuning completed for '{model_name}'")
+            
+            return {
+                "model_name": model_name,
+                "train_score": train_score,
+                "best_params": best_params,
+                "tuning_cv_score": tuner.last_results.get("best_score"),
+                "status": "success",
+                "tuned": True,
+            }
+            
+        except Exception as e:
+            logger.error(f"Hyperparameter tuning failed for '{model_name}': {e}")
+            # Fall back to regular training
+            return self.train(model_name, X_train, y_train)
 
     def predict(self, model_name: str, X: np.ndarray) -> np.ndarray:
         """Make predictions using a trained model.

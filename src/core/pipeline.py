@@ -7,6 +7,7 @@ from .data_handler import DataHandler
 from .preprocessing import Preprocessor
 from .models import ModelManager
 from .metrics import MetricsCalculator
+from .cache_manager import CacheManager
 
 
 class MLPipeline:
@@ -78,6 +79,9 @@ class MLPipeline:
             try:
                 result = self.model_manager.train(model_name, self.X_train, self.y_train)
                 train_results[model_name] = result
+                
+                # Invalidate feature importance cache for this model after training
+                CacheManager.invalidate_model_cache(model_name)
             except Exception as e:
                 train_results[model_name] = {"status": "failed", "error": str(e)}
         

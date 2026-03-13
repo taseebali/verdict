@@ -11,6 +11,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
+from src.core.model_migration import ModelMigration
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,13 +66,16 @@ class ModelSerializer:
             # Save model
             joblib.dump(model, str(model_path), compress=3)
             
-            # Save metadata
+            # Save metadata with version information
             full_metadata = {
                 "model_name": model_name,
                 "saved_at": datetime.now().isoformat(),
                 "model_type": type(model).__name__,
                 "user_metadata": metadata or {}
             }
+            
+            # Add version metadata
+            full_metadata = ModelMigration.add_version_metadata(full_metadata)
             
             joblib.dump(full_metadata, str(cls.MODELS_DIR / f"{model_name}{cls.METADATA_SUFFIX}.joblib"))
             
@@ -114,6 +119,18 @@ class ModelSerializer:
                 metadata_path = cls.MODELS_DIR / f"{model_name}{cls.METADATA_SUFFIX}.joblib"
                 if metadata_path.exists():
                     metadata = joblib.load(str(metadata_path))
+                    
+                    # Check compatibility and apply migrations
+                    is_valid, validation_msg = ModelMigration.validate_metadata(metadata)
+                    if not is_valid:
+                        logger.warning(f"Invalid metadata for '{model_name}': {validation_msg}")
+                    
+                    if not ModelMigration.is_compatible(metadata):
+                        logger.warning(f"Model '{model_name}' may not be fully compatible")
+                    
+                    # Apply any necessary migrations
+                    metadata = ModelMigration.migrate_if_needed(metadata)
+                    
                     return model, metadata
             
             return model

@@ -1,12 +1,16 @@
 """Streamlit Audit Logs Page"""
 
+import os
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add project root to path for imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import datetime
 
 from src.ui.session_manager import (
@@ -14,6 +18,8 @@ from src.ui.session_manager import (
     load_model_from_registry, save_model_to_registry
 )
 from src.ui.charts import plot_feature_importance
+from src.ui.components import AuditTrailComponent, ModelPerformanceComponent
+from src.core.ml_operations import DriftDetector
 
 # Configure page FIRST
 st.set_page_config(
@@ -59,7 +65,7 @@ if len(model_registry) > 0:
         }
         for name, data in model_registry.items()
     ])
-    st.dataframe(model_comparison, use_container_width=True)
+    st.dataframe(model_comparison, width='stretch')
     st.markdown("---")
 
 # Save current model button
@@ -86,6 +92,18 @@ if st.session_state.trained_model is not None:
         st.metric("Train Accuracy", f"{st.session_state.train_acc:.2%}")
     with col4:
         st.metric("Test Accuracy", f"{st.session_state.test_acc:.2%}")
+    
+    # Use ModelPerformanceComponent for detailed metrics
+    metrics_dict = {
+        "Test Accuracy": st.session_state.test_acc,
+        "Precision": st.session_state.test_precision,
+        "Recall": st.session_state.test_recall,
+        "F1-Score": st.session_state.test_f1
+    }
+    st.markdown("---")
+    st.markdown("### 📊 Detailed Metrics")
+    perf_component = ModelPerformanceComponent(metrics_dict)
+    perf_component.render()
     
     st.markdown("### Feature Importance")
     if hasattr(st.session_state.trained_model, 'feature_importances_'):
@@ -176,7 +194,7 @@ if len(records) > 0:
         for r in records[start_idx:end_idx]
     ])
     
-    st.dataframe(audit_df, use_container_width=True)
+    st.dataframe(audit_df, width='stretch')
     
     # Export audit trail
     from src.ui.utils import export_audit_trail_to_csv
@@ -218,9 +236,139 @@ if len(records) > 0:
 else:
     st.info("⏳ No predictions made yet. Go to Predictions page and make some predictions!")
 
+# ===== DRIFT ANALYSIS =====
+st.markdown("---")
+st.markdown("## 📊 Drift Detection Analysis")
+
+if st.session_state.trained_model is not None and st.session_state.get('X_train') is not None:
+    detector = DriftDetector()
+    
+    col_drift1, col_drift2 = st.columns([2, 1])
+    
+    with col_drift1:
+        st.markdown("### Feature Drift Detection")
+        st.caption("Compares training data distribution with test/current data distribution")
+        
+        # Check if we have test data
+        if st.session_state.X_test is not None and len(st.session_state.X_test) > 0:
+            
+            # Detect drift for all features
+            try:
+                drift_results = detector.detect_feature_drift(
+                    train_df=st.session_state.X_train,
+                    test_df=st.session_state.X_test,
+                    feature_columns=st.session_state.model_features,
+                    categorical_features=[]  # Customize based on your data
+                )
+                
+                # Overall drift assessment
+                overall_drift = detector.assess_overall_drift(drift_results)
+                
+                # Display overall drift status
+                col_overall1, col_overall2, col_overall3 = st.columns(3)
+                
+                with col_overall1:
+                    if overall_drift.overall_drift_detected:
+                        st.error(f"⚠️ Drift Detected: {overall_drift.drift_percentage*100:.1f}%")
+                    else:
+                        st.success(f"✅ No Drift: {overall_drift.drift_percentage*100:.1f}%")
+                
+                with col_overall2:
+                    severity_emoji = {"none": "✅", "low": "⚠️", "medium": "🔴", "high": "🛑"}
+                    emoji = severity_emoji.get(overall_drift.severity, "❓")
+                    st.metric(f"{emoji} Overall Severity", overall_drift.severity.upper())
+                
+                with col_overall3:
+                    st.metric("Features Drifted", f"{overall_drift.num_features_drifted}/{overall_drift.total_features_checked}")
+                
+                # Create drift summary table
+                drift_summary_df = detector.get_drift_summary_dataframe(drift_results)
+                
+                # Format the dataframe for display
+                display_df = drift_summary_df.copy()
+                display_df['Drift Detected'] = display_df['Drift Detected'].map({True: '🔴 Yes', False: '✅ No'})
+                display_df['Severity'] = display_df['Severity'].map({
+                    'none': '✅ None',
+                    'low': '⚠️ Low',
+                    'medium': '🔴 Medium',
+                    'high': '🛑 High'
+                })
+                
+                st.dataframe(display_df, width='stretch')
+                
+                # Detailed feature analysis
+                with st.expander("📋 Detailed Feature Analysis"):
+                    for i, result in enumerate(drift_results):
+                        st.markdown(f"**{result.feature}** ({result.feature_type})")
+                        col_d1, col_d2, col_d3 = st.columns(3)
+                        
+                        with col_d1:
+                            st.metric("Statistic", f"{result.statistic:.4f}")
+                        with col_d2:
+                            st.metric("P-Value", f"{result.p_value:.4f}")
+                        with col_d3:
+                            st.metric("Threshold", f"{result.threshold:.4f}")
+                        
+                        st.caption(result.description)
+                        
+                        # Show distributions if available
+                        if result.train_dist and result.test_dist:
+                            col_dist1, col_dist2 = st.columns(2)
+                            with col_dist1:
+                                st.markdown("**Training Distribution**")
+                                if isinstance(result.train_dist, dict) and 'mean' in result.train_dist:
+                                    st.write(f"Mean: {result.train_dist.get('mean', 'N/A'):.4f}")
+                                    st.write(f"Std: {result.train_dist.get('std', 'N/A'):.4f}")
+                                else:
+                                    st.write(result.train_dist)
+                            with col_dist2:
+                                st.markdown("**Test Distribution**")
+                                if isinstance(result.test_dist, dict) and 'mean' in result.test_dist:
+                                    st.write(f"Mean: {result.test_dist.get('mean', 'N/A'):.4f}")
+                                    st.write(f"Std: {result.test_dist.get('std', 'N/A'):.4f}")
+                                else:
+                                    st.write(result.test_dist)
+                        
+                        st.divider()
+                
+            except Exception as e:
+                st.error(f"Error in drift detection: {str(e)}")
+        else:
+            st.warning("⏳ No test data available. Train a model with test data to enable drift analysis.")
+    
+    with col_drift2:
+        # Model performance drift
+        st.markdown("### Model Performance")
+        st.caption("Monitor for model degradation")
+        
+        if hasattr(st.session_state, 'train_scores') and hasattr(st.session_state, 'test_scores'):
+            try:
+                perf_drift_detected, degradation_ratio, perf_description = detector.detect_model_performance_drift(
+                    train_scores=st.session_state.train_scores,
+                    test_scores=st.session_state.test_scores,
+                    metric_name="accuracy",
+                    performance_threshold=0.05
+                )
+                
+                if perf_drift_detected:
+                    st.error(f"⚠️ Performance Degradation")
+                    st.metric("Degradation", f"{degradation_ratio*100:.1f}%")
+                else:
+                    st.success(f"✅ Performance Stable")
+                    st.metric("Degradation", f"{degradation_ratio*100:.1f}%")
+                
+                st.caption(perf_description)
+            except Exception as e:
+                st.info("Train/test scores not available for performance drift analysis")
+        else:
+            st.info("Train and test scores needed for performance drift analysis")
+
+else:
+    st.warning("⏳ Train a model with test data to enable drift analysis.")
+
 # ===== REFRESH =====
 st.markdown("---")
-if st.button("🔄 Refresh Data", use_container_width=True):
+if st.button("🔄 Refresh Data", width='stretch'):
     st.rerun()
 
 st.markdown("""
