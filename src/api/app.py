@@ -4,13 +4,12 @@ import time
 import logging
 import sys
 import os
-from typing import Dict, Any, Optional, List
+from typing import Dict
 
 import pandas as pd
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
@@ -18,9 +17,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 from src.core.pipeline import MLPipeline
 from src.core.formatters import format_value
 from src.decision.decision_audit_logger import DecisionAuditLogger
-from config.settings import MODEL_CONFIGS, RANDOM_SEED
+from config.settings import MODEL_CONFIGS
 from .schemas import (
-    PredictRequest, PredictResponse, ErrorResponse, HealthResponse,
+    PredictRequest, PredictResponse, HealthResponse,
     FeaturesResponse, FeatureInfo, AuditResponse, AuditRecord,
     WhatIfRequest, WhatIfResponse, RecommendationResponse
 )
