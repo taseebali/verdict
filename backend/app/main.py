@@ -25,11 +25,19 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-import os
 from pathlib import Path
 
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if FRONTEND_DIST.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve built frontend files, falling back to index.html for client-side routes."""
+        candidate = FRONTEND_DIST / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
