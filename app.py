@@ -3,9 +3,7 @@ VERDICT ML Platform - Main Application
 Root-level entry point for HuggingFace Spaces & Docker deployment
 """
 
-import subprocess
 import sys
-import time
 import os
 from pathlib import Path
 

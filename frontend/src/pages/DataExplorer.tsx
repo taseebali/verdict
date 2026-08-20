@@ -38,7 +38,7 @@ export function DataExplorer() {
         <button
           onClick={() => demoMutation.mutate()}
           disabled={demoMutation.isPending}
-          className="bg-ink text-white rounded-lg px-4 py-2 text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-50"
+          className="bg-ink text-canvas-100 rounded-lg px-4 py-2 text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-50"
         >
           {demoMutation.isPending ? "Loading…" : "Use demo dataset"}
         </button>

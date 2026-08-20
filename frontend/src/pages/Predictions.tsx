@@ -54,7 +54,7 @@ export function Predictions() {
           predictMutation.mutate({ features });
         }}
         disabled={predictMutation.isPending}
-        className="bg-ink text-white rounded-lg px-4 py-2 text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-40"
+        className="bg-ink text-canvas-100 rounded-lg px-4 py-2 text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-40"
       >
         {predictMutation.isPending ? "Predicting…" : "Predict"}
       </button>

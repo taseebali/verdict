@@ -9,6 +9,8 @@ export default {
         "accent-light": "#818cf8",
         ink: "#18181b",
         canvas: "#fafaf9",
+        "canvas-100": "#fafafa",
+        sidebar: "#111113",
       },
       fontFamily: {
         sans: ["-apple-system", "SF Pro Display", "Segoe UI", "system-ui", "sans-serif"],

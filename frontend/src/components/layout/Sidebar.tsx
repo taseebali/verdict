@@ -10,7 +10,7 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   return (
-    <nav className="w-16 bg-[#111113] flex flex-col items-center py-4 gap-5 shrink-0">
+    <nav className="w-16 bg-sidebar flex flex-col items-center py-4 gap-5 shrink-0">
       <div className="w-5 h-5 rounded-md bg-gradient-to-br from-accent-light to-accent shadow-[0_0_16px_rgba(99,102,241,0.5)]" />
       <div className="flex flex-col gap-4 mt-2">
         {NAV_ITEMS.map((item) => (
