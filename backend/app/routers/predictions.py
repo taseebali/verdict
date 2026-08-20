@@ -51,7 +51,11 @@ def _predict_one(features: dict) -> PredictResponse:
         probability = float(proba[1]) if len(proba) > 1 else float(proba[0])
         confidence = float(max(proba))
     else:
-        probability = float(prediction)
+        # Model has no predict_proba (e.g. a hard-voting ensemble) — there's
+        # no real probability distribution to report, so represent the hard
+        # decision as a valid 0-1 value rather than leaking the raw class
+        # label (which can be any integer, not a probability).
+        probability = 1.0 if prediction == 1 else 0.0
         confidence = 1.0
 
     state.audit_logger.log_prediction(

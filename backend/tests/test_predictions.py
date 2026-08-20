@@ -50,6 +50,42 @@ def test_predict_unknown_categorical_value_returns_400(client):
     assert "contract_type" in response.json()["detail"]
 
 
+def test_predict_without_predict_proba_reports_valid_probability(client):
+    """The API contract requires trained_model_name to name a model type that
+    supports predict_proba (only logistic_regression/random_forest are
+    reachable via /api/train). A model without predict_proba is still
+    reachable directly (e.g. via the auto-generated /docs UI hitting
+    state.trained_model), so the fallback path must still report a valid
+    0-1 probability instead of leaking the raw prediction value.
+    """
+    client.post("/api/datasets/demo")
+    client.post(
+        "/api/train",
+        json={"target": "churn", "features": None, "method": "random_forest"},
+    )
+
+    from app.state import get_state
+    state = get_state()
+
+    class _HardVoteStub:
+        """A model with no predict_proba, whose prediction is deliberately
+        outside [0, 1] to prove the old bug (probability = raw prediction)
+        is gone."""
+
+        def predict(self, X):
+            return [42]
+
+    state.trained_model = _HardVoteStub()
+    sample = _sample_from_row(state)
+
+    response = client.post("/api/predict", json={"features": sample})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["prediction"] == 42
+    assert body["probability"] == 0.0
+    assert 0.0 <= body["confidence"] <= 1.0
+
+
 def test_predict_matches_pipeline_transform_directly(client):
     """Equivalence test for the Critical-1 fix: the /api/predict endpoint must
     route features through the SAME preprocessing transform the model was
