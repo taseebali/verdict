@@ -24,4 +24,5 @@ def reset_state():
     state.trained_model_name = None
     state.model_features = None
     state.target_column = None
+    state.audit_logger.clear_logs()
     yield

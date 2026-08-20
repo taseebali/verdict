@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import datasets, training, predictions
+from app.routers import datasets, training, predictions, audit, models
 
 app = FastAPI(title="Verdict API")
 
@@ -16,6 +16,8 @@ app.add_middleware(
 app.include_router(datasets.router)
 app.include_router(training.router)
 app.include_router(predictions.router)
+app.include_router(audit.router)
+app.include_router(models.router)
 
 
 @app.get("/api/health")
