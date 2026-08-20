@@ -23,3 +23,13 @@ app.include_router(models.router)
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+import os
+from pathlib import Path
+
+from fastapi.staticfiles import StaticFiles
+
+FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")
