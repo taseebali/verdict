@@ -28,3 +28,26 @@ def test_upload_dataset(client):
 def test_current_summary_before_load_returns_404(client):
     response = client.get("/api/datasets/current")
     assert response.status_code == 404
+
+
+def test_sample_row_returns_a_real_row(client):
+    client.post("/api/datasets/demo")
+    response = client.get("/api/datasets/sample-row")
+    assert response.status_code == 200
+    features = response.json()["features"]
+    assert "churn" in features
+    assert "contract_type" in features
+    assert features["contract_type"] in ["Month-to-month", "One year", "Two year"]
+
+
+def test_sample_row_before_load_returns_404(client):
+    response = client.get("/api/datasets/sample-row")
+    assert response.status_code == 404
+
+
+def test_categories_returns_known_values(client):
+    client.post("/api/datasets/demo")
+    response = client.get("/api/datasets/categories")
+    assert response.status_code == 200
+    categories = response.json()["categories"]
+    assert set(categories["contract_type"]) == {"Month-to-month", "One year", "Two year"}

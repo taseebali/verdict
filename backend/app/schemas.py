@@ -24,6 +24,14 @@ class TrainResponse(BaseModel):
     feature_importance: dict[str, float]
 
 
+class SampleRowResponse(BaseModel):
+    features: dict[str, Any]
+
+
+class CategoriesResponse(BaseModel):
+    categories: dict[str, list[str]]
+
+
 class PredictRequest(BaseModel):
     features: dict[str, Any]
 

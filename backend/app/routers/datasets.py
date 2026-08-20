@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 from fastapi import APIRouter, HTTPException, UploadFile
 
-from app.schemas import DatasetSummary
+from app.schemas import CategoriesResponse, DatasetSummary, SampleRowResponse
 from app.state import get_state
 from src.core.data_handler import DataHandler
 
@@ -14,6 +14,10 @@ router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 DEMO_DATA_PATH = Path(__file__).parent.parent.parent.parent / "data" / "verdict_demo.csv"
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+
+# Categorical columns with more unique values than this aren't useful as a
+# dropdown (likely a free-text/ID-like column) - fall back to a text input.
+MAX_CATEGORY_OPTIONS = 50
 
 # DataHandler prefixes quality warnings with an emoji marker (e.g. "⚠️  ...");
 # strip any leading non-ASCII/whitespace characters before they reach the UI.
@@ -103,3 +107,26 @@ def get_current_dataset():
     if state.df is None or state.dataset_summary is None:
         raise HTTPException(status_code=404, detail="No dataset loaded yet")
     return state.dataset_summary
+
+
+@router.get("/sample-row", response_model=SampleRowResponse)
+def get_sample_row():
+    state = get_state()
+    if state.df is None:
+        raise HTTPException(status_code=404, detail="No dataset loaded yet")
+    row = state.df.sample(n=1).iloc[0]
+    features = {col: (val.item() if hasattr(val, "item") else val) for col, val in row.items()}
+    return SampleRowResponse(features=features)
+
+
+@router.get("/categories", response_model=CategoriesResponse)
+def get_categories():
+    state = get_state()
+    if state.df is None or state.dataset_summary is None:
+        raise HTTPException(status_code=404, detail="No dataset loaded yet")
+    categories: dict[str, list[str]] = {}
+    for col in state.dataset_summary.categorical_columns:
+        uniques = state.df[col].dropna().unique().tolist()
+        if len(uniques) <= MAX_CATEGORY_OPTIONS:
+            categories[col] = sorted(str(v) for v in uniques)
+    return CategoriesResponse(categories=categories)

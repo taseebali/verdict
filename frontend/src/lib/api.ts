@@ -7,6 +7,8 @@ import type {
   WhatIfRequest,
   WhatIfResponse,
   AuditRecord,
+  SampleRowResponse,
+  CategoriesResponse,
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -59,4 +61,8 @@ export const apiClient = {
     request<WhatIfResponse>("/api/whatif", { method: "POST", body: JSON.stringify(req) }),
 
   getAuditLogs: () => request<AuditRecord[]>("/api/audit-logs"),
+
+  getSampleRow: () => request<SampleRowResponse>("/api/datasets/sample-row"),
+
+  getCategories: () => request<CategoriesResponse>("/api/datasets/categories"),
 };

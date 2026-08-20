@@ -19,6 +19,14 @@ export interface TrainResponse {
   feature_importance: Record<string, number>;
 }
 
+export interface SampleRowResponse {
+  features: Record<string, unknown>;
+}
+
+export interface CategoriesResponse {
+  categories: Record<string, string[]>;
+}
+
 export interface PredictRequest {
   features: Record<string, number | string>;
 }
