@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-ink: #18181b;
+  --color-canvas: #fafaf9;
+  --color-accent: #6366f1;
+  --color-border: rgba(0, 0, 0, 0.06);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-value {
+  font-variant-numeric: tabular-nums;
+}
