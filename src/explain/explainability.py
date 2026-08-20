@@ -136,7 +136,7 @@ class ExplainabilityAnalyzer:
             return {}
 
     def get_feature_importance(
-        self, model_name: str = "model", use_cache: bool = True
+        self, model_name: str = "model", use_cache: bool = True, y_test=None
     ) -> Dict[str, float]:
         """
         Get feature importance with optional caching.
@@ -144,6 +144,10 @@ class ExplainabilityAnalyzer:
         Args:
             model_name: Name of the model (for cache key)
             use_cache: Whether to use cached importance if available
+            y_test: True labels for X_test. Required to measure real predictive
+                importance; without it, importance falls back to measuring
+                self-consistency against the model's own predictions, which
+                collapses to ~0 for most features on a well-generalizing model.
 
         Returns:
             Dictionary of feature importance scores, sorted by importance
@@ -158,11 +162,11 @@ class ExplainabilityAnalyzer:
 
         # Compute importance (permutation for now, can use SHAP-based later)
         try:
+            target = y_test if y_test is not None else self.model.predict(self.X_test)
             result = permutation_importance(
                 self.model,
                 self.X_test,
-                # Use model predictions as target since we may not have true labels
-                self.model.predict(self.X_test),
+                target,
                 n_repeats=10,
                 random_state=42,
                 scoring="accuracy",

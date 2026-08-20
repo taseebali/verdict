@@ -23,6 +23,7 @@ Thumbs.db
 # Project
 models/
 reports/
+cache/
 data/*.csv.backup
 *.log
 
