@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 
 from app.schemas import PredictRequest, PredictResponse, WhatIfRequest, WhatIfResponse
@@ -7,12 +8,42 @@ from app.state import get_state
 router = APIRouter(prefix="/api", tags=["predictions"])
 
 
+def _transform_features(features: dict) -> np.ndarray:
+    """Route a raw feature dict through the same label-encoding + scaling the
+    training data went through, so it lands in the feature space the model
+    was actually trained on."""
+    state = get_state()
+    preprocessor = state.pipeline.preprocessor
+
+    row = {col: features.get(col, 0) for col in state.model_features}
+    df = pd.DataFrame([row], columns=state.model_features)
+
+    for col, encoder in preprocessor.label_encoders.items():
+        if col not in df.columns:
+            continue
+        value = str(df.at[0, col])
+        try:
+            df[col] = encoder.transform([value])
+        except ValueError:
+            known = ", ".join(map(str, encoder.classes_))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown value '{value}' for feature '{col}'. Known values: {known}",
+            )
+
+    numeric_cols = [c for c in preprocessor.numeric_cols if c in df.columns]
+    if numeric_cols:
+        df[numeric_cols] = preprocessor.scaler.transform(df[numeric_cols])
+
+    return df[state.model_features].to_numpy()
+
+
 def _predict_one(features: dict) -> PredictResponse:
     state = get_state()
-    if state.trained_model is None:
+    if state.trained_model is None or state.pipeline is None:
         raise HTTPException(status_code=400, detail="No trained model — call /api/train first")
 
-    row = np.array([[features.get(f, 0) for f in state.model_features]])
+    row = _transform_features(features)
     prediction = int(state.trained_model.predict(row)[0])
 
     if hasattr(state.trained_model, "predict_proba"):

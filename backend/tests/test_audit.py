@@ -3,7 +3,10 @@ def test_audit_logs_after_prediction(client):
     client.post("/api/train", json={"target": "churn", "features": None, "method": "random_forest"})
     from app.state import get_state
     state = get_state()
-    sample = {f: float(state.df[f].iloc[0]) if state.df[f].dtype.kind in "if" else 0 for f in state.model_features}
+    sample = {
+        f: float(state.df[f].iloc[0]) if state.df[f].dtype.kind in "if" else str(state.df[f].iloc[0])
+        for f in state.model_features
+    }
     client.post("/api/predict", json={"features": sample})
 
     response = client.get("/api/audit-logs")
