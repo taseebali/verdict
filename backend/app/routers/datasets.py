@@ -1,4 +1,5 @@
 import io
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,16 @@ from src.core.data_handler import DataHandler
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
 DEMO_DATA_PATH = Path(__file__).parent.parent.parent.parent / "data" / "verdict_demo.csv"
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+
+# DataHandler prefixes quality warnings with an emoji marker (e.g. "⚠️  ...");
+# strip any leading non-ASCII/whitespace characters before they reach the UI.
+_LEADING_EMOJI_RE = re.compile(r"^[^\w(]+\s*")
+
+
+def _clean_warning(warning: str) -> str:
+    return _LEADING_EMOJI_RE.sub("", warning).strip()
 
 
 def _summarize(df: pd.DataFrame) -> DatasetSummary:
@@ -28,7 +39,7 @@ def _summarize(df: pd.DataFrame) -> DatasetSummary:
     warnings: list[str] = []
     try:
         _, quality_warnings, _ = handler.validate_data_quality()
-        warnings.extend(quality_warnings)
+        warnings.extend(_clean_warning(w) for w in quality_warnings)
     except Exception:
         # If validation fails, still return basic summary with no warnings
         pass
@@ -60,8 +71,9 @@ def load_demo_dataset():
     if not DEMO_DATA_PATH.exists():
         raise HTTPException(status_code=500, detail=f"Demo dataset not found at {DEMO_DATA_PATH}")
     state.df = pd.read_csv(DEMO_DATA_PATH)
-    state.pipeline = None
-    return _summarize(state.df)
+    state.reset_model()
+    state.dataset_summary = _summarize(state.df)
+    return state.dataset_summary
 
 
 @router.post("/upload", response_model=DatasetSummary)
@@ -69,19 +81,25 @@ async def upload_dataset(file: UploadFile):
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
     contents = await file.read()
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large — maximum upload size is {MAX_UPLOAD_BYTES // (1024 * 1024)}MB",
+        )
     try:
         df = pd.read_csv(io.BytesIO(contents))
     except Exception:
         raise HTTPException(status_code=400, detail="Could not parse CSV — check the file is valid CSV format")
     state = get_state()
     state.df = df
-    state.pipeline = None
-    return _summarize(state.df)
+    state.reset_model()
+    state.dataset_summary = _summarize(state.df)
+    return state.dataset_summary
 
 
 @router.get("/current", response_model=DatasetSummary)
 def get_current_dataset():
     state = get_state()
-    if state.df is None:
+    if state.df is None or state.dataset_summary is None:
         raise HTTPException(status_code=404, detail="No dataset loaded yet")
-    return _summarize(state.df)
+    return state.dataset_summary

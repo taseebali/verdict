@@ -25,6 +25,7 @@ export function ModelTraining() {
   const dataset = datasetQuery.data;
   const allColumns = dataset ? [...dataset.numeric_columns, ...dataset.categorical_columns] : [];
   const candidateFeatures = allColumns.filter((c) => c !== target);
+  const selectedFeatureCount = candidateFeatures.length - excludedFeatures.size;
 
   return (
     <div>
@@ -78,7 +79,7 @@ export function ModelTraining() {
       )}
 
       <button
-        disabled={!target || trainMutation.isPending}
+        disabled={!target || selectedFeatureCount === 0 || trainMutation.isPending}
         onClick={() =>
           trainMutation.mutate({
             target,

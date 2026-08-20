@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "../lib/api";
 import { EmptyState } from "../components/EmptyState";
+import { SkeletonBlock } from "../components/SkeletonBlock";
 
 export function AuditLogs() {
   const auditQuery = useQuery({ queryKey: ["audit-logs"], queryFn: apiClient.getAuditLogs });
@@ -11,6 +12,20 @@ export function AuditLogs() {
         <div className="text-[11px] uppercase tracking-wide text-stone-500 mb-1">Audit</div>
         <div className="text-2xl font-semibold tracking-tight text-ink">Prediction log</div>
       </div>
+
+      {auditQuery.isLoading && (
+        <div className="flex flex-col gap-2">
+          <SkeletonBlock className="h-9 w-full" />
+          <SkeletonBlock className="h-9 w-full" />
+          <SkeletonBlock className="h-9 w-full" />
+        </div>
+      )}
+
+      {auditQuery.isError && (
+        <div className="bg-red-50 border border-red-100 text-red-700 text-xs rounded-lg px-4 py-3">
+          {(auditQuery.error as Error).message || "Failed to load audit logs."}
+        </div>
+      )}
 
       {auditQuery.data && auditQuery.data.length === 0 && (
         <EmptyState title="No predictions yet" description="Predictions you make will be logged here." />

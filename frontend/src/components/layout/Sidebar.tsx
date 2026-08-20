@@ -1,11 +1,13 @@
 import { NavLink } from "react-router-dom";
+import { LayoutDashboard, Database, Brain, Target, ClipboardList } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard" },
-  { to: "/data", label: "Data Explorer" },
-  { to: "/training", label: "Model Training" },
-  { to: "/predictions", label: "Predictions" },
-  { to: "/audit", label: "Audit Logs" },
+const NAV_ITEMS: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/data", label: "Data Explorer", icon: Database },
+  { to: "/training", label: "Model Training", icon: Brain },
+  { to: "/predictions", label: "Predictions", icon: Target },
+  { to: "/audit", label: "Audit Logs", icon: ClipboardList },
 ];
 
 export function Sidebar() {
@@ -19,13 +21,15 @@ export function Sidebar() {
             to={item.to}
             title={item.label}
             className={({ isActive }) =>
-              `w-7 h-7 rounded-lg border transition-colors ${
+              `w-7 h-7 rounded-lg border flex items-center justify-center transition-colors ${
                 isActive
-                  ? "bg-accent/15 border-accent/30"
-                  : "border-transparent hover:bg-white/5"
+                  ? "bg-accent/15 border-accent/30 text-accent"
+                  : "border-transparent text-stone-400 hover:bg-white/5 hover:text-stone-200"
               }`
             }
-          />
+          >
+            <item.icon size={17} strokeWidth={1.5} />
+          </NavLink>
         ))}
       </div>
     </nav>

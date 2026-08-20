@@ -18,7 +18,15 @@ def train_model(request: TrainRequest):
         raise HTTPException(status_code=400, detail=f"Target column '{request.target}' not found in dataset")
 
     df = state.df
-    if request.features:
+    if request.features == []:
+        raise HTTPException(status_code=400, detail="Select at least one feature")
+    if request.features is not None:
+        missing = [f for f in request.features if f not in state.df.columns]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown feature column(s): {', '.join(missing)}",
+            )
         df = df[request.features + [request.target]]
 
     pipeline = MLPipeline(df, target_col=request.target)

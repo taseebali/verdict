@@ -11,6 +11,16 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -18,7 +28,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(body.detail ?? `Request failed: ${response.status}`);
+    throw new ApiError(body.detail ?? `Request failed: ${response.status}`, response.status);
   }
   return response.json();
 }
@@ -32,7 +42,7 @@ export const apiClient = {
     const response = await fetch(`${BASE_URL}/api/datasets/upload`, { method: "POST", body: formData });
     if (!response.ok) {
       const body = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(body.detail ?? `Upload failed: ${response.status}`);
+      throw new ApiError(body.detail ?? `Upload failed: ${response.status}`, response.status);
     }
     return response.json();
   },

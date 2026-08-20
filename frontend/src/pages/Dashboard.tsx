@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "../lib/api";
+import { apiClient, ApiError } from "../lib/api";
 import { HeroStat } from "../components/HeroStat";
 import { StatTile } from "../components/StatTile";
 import { EmptyState } from "../components/EmptyState";
@@ -11,13 +11,14 @@ export function Dashboard() {
     queryFn: apiClient.getCurrentDataset,
     retry: false,
   });
+  const isNotFound = datasetQuery.error instanceof ApiError && datasetQuery.error.status === 404;
   const auditQuery = useQuery({
     queryKey: ["audit-logs"],
     queryFn: apiClient.getAuditLogs,
     enabled: !datasetQuery.isError,
   });
 
-  if (datasetQuery.isError) {
+  if (datasetQuery.isError && isNotFound) {
     return (
       <EmptyState
         title="No dataset loaded"
@@ -28,6 +29,14 @@ export function Dashboard() {
           </Link>
         }
       />
+    );
+  }
+
+  if (datasetQuery.isError) {
+    return (
+      <div className="bg-red-50 border border-red-100 text-red-700 text-xs rounded-lg px-4 py-3">
+        {(datasetQuery.error as Error).message || "Failed to load dataset."}
+      </div>
     );
   }
 
