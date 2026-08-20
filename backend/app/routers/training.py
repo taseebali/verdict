@@ -4,6 +4,7 @@ from app.schemas import TrainRequest, TrainResponse
 from app.state import get_state
 from src.core.pipeline import MLPipeline
 from src.explain.explainability import ExplainabilityAnalyzer
+from src.artifacts.model_serializer import ModelSerializer
 
 router = APIRouter(prefix="/api/train", tags=["training"])
 
@@ -43,6 +44,14 @@ def train_model(request: TrainRequest):
     state.trained_model_name = request.method
     state.model_features = pipeline.preprocessor.get_feature_names()
     state.target_column = request.target
+
+    # Persist the model
+    ModelSerializer.save_model(
+        model,
+        model_name=request.method,
+        metadata={"target": request.target, "features": state.model_features},
+        overwrite=True,
+    )
 
     return TrainResponse(
         model_name=request.method,

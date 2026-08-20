@@ -10,5 +10,5 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 def download_model(name: str):
     if not ModelSerializer.model_exists(name):
         raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
-    info = ModelSerializer.get_model_info(name)
-    return FileResponse(info["model_path"], filename=f"{name}.joblib")
+    model_path = ModelSerializer.MODELS_DIR / f"{name}.joblib"
+    return FileResponse(str(model_path), filename=f"{name}.joblib")

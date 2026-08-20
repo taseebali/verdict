@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 
 from app.schemas import DatasetSummary
 from app.state import get_state
+from src.core.data_handler import DataHandler
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
@@ -13,11 +14,26 @@ DEMO_DATA_PATH = Path(__file__).parent.parent.parent.parent / "data" / "verdict_
 
 
 def _summarize(df: pd.DataFrame) -> DatasetSummary:
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    categorical_cols = df.select_dtypes(exclude=["number"]).columns.tolist()
+    # Use DataHandler for data quality checks
+    handler = DataHandler(df)
+    summary = handler.get_data_summary()
+
+    numeric_cols = summary["numeric_columns"]
+    categorical_cols = summary["categorical_columns"]
+
+    # Calculate overall missing percentage
     missing_pct = round(float(df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100, 2) if df.size else 0.0
 
+    # Get quality warnings from DataHandler
     warnings: list[str] = []
+    try:
+        _, quality_warnings, _ = handler.validate_data_quality()
+        warnings.extend(quality_warnings)
+    except Exception:
+        # If validation fails, still return basic summary with no warnings
+        pass
+
+    # Add correlation check
     if len(numeric_cols) >= 2:
         corr = df[numeric_cols].corr().abs()
         high_corr_pairs = 0
@@ -50,13 +66,13 @@ def load_demo_dataset():
 
 @router.post("/upload", response_model=DatasetSummary)
 async def upload_dataset(file: UploadFile):
-    if not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
     contents = await file.read()
     try:
         df = pd.read_csv(io.BytesIO(contents))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not parse CSV: {e}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not parse CSV — check the file is valid CSV format")
     state = get_state()
     state.df = df
     state.pipeline = None
