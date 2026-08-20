@@ -22,6 +22,7 @@ from src.ui.session_manager import init_session_state
 from src.ui.charts import plot_feature_importance
 from src.ui.components import DataLoadingComponent, TargetColumnSelector, FeatureSelector, ModelPerformanceComponent
 from src.core.ml_operations import EnsembleManager
+from src.explain.explainability import ExplainabilityAnalyzer
 
 st.set_page_config(page_title="Train Model", page_icon="🤖", layout="wide")
 
@@ -268,6 +269,7 @@ if st.button("🚀 TRAIN MODEL", type="primary", width='stretch'):
         st.session_state.selected_features = numeric_feature_cols  # Store original feature selection
         st.session_state.label_encoders = label_encoders  # Store encoders for prediction
         st.session_state.target_column = target_col
+        st.session_state.X_train = X_train
         st.session_state.X_test = X_test
         st.session_state.y_test = y_test
         st.session_state.train_acc = train_acc
@@ -404,15 +406,32 @@ if st.session_state.trained_model is not None:
             st.caption("Cross-validation provides a more robust estimate of model performance across different data splits.")
         
         st.markdown("### Feature Importance")
-        # Check if model has feature importance (some ensemble models don't)
-        if hasattr(st.session_state.trained_model, 'feature_importances_'):
+        # Permutation importance works for any model (tree, linear, ensemble),
+        # unlike .feature_importances_ which only tree-based models expose.
+        try:
+            analyzer = ExplainabilityAnalyzer(
+                st.session_state.trained_model,
+                st.session_state.get('X_train', st.session_state.X_test),
+                st.session_state.X_test,
+                st.session_state.model_features,
+            )
+            importance_dict = analyzer.get_feature_importance(
+                use_cache=False, y_test=st.session_state.y_test
+            )
+        except Exception:
+            importance_dict = None
+
+        if importance_dict:
+            plot_feature_importance(importance_dict)
+            st.caption("Permutation importance: drop in accuracy when a feature's values are shuffled, measured against true test labels.")
+        elif hasattr(st.session_state.trained_model, 'feature_importances_'):
             importance_dict = dict(zip(
                 st.session_state.model_features,
                 st.session_state.trained_model.feature_importances_
             ))
             plot_feature_importance(importance_dict)
         else:
-            st.info("ℹ️ This model type doesn't support feature importance.")
+            st.info("ℹ️ Feature importance unavailable for this model.")
     
     # ===== TAB 2: BEST MODEL =====
     with tab2:

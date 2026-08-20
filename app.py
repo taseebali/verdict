@@ -1,7 +1,6 @@
 """
 VERDICT ML Platform - Main Application
 Root-level entry point for HuggingFace Spaces & Docker deployment
-Runs both FastAPI (backend) and Streamlit (frontend) in parallel
 """
 
 import subprocess
@@ -14,8 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 def run_app():
-    """Run Streamlit UI only (FastAPI removed - not used by UI)."""
-    
+    """Run the Streamlit UI."""
+
     print("""
     ╔════════════════════════════════════════════════════════════╗
     ║          🎯 VERDICT ML Platform - Starting Up             ║
@@ -26,8 +25,7 @@ def run_app():
     ui_port = int(os.getenv("PORT", 8501))
     
     print(f"🎨 UI will run on port {ui_port}\n")
-    print("ℹ️  FastAPI backend removed - all ML processing done in Streamlit\n")
-    
+
     # Start Streamlit frontend
     print("🚀 Starting Streamlit frontend...\n")
     ui_process = subprocess.Popen(
