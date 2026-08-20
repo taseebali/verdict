@@ -22,3 +22,24 @@ class TrainResponse(BaseModel):
     model_name: str
     metrics: dict[str, float]
     feature_importance: dict[str, float]
+
+
+class PredictRequest(BaseModel):
+    features: dict[str, Any]
+
+
+class PredictResponse(BaseModel):
+    prediction: int
+    probability: float
+    confidence: float
+
+
+class WhatIfRequest(BaseModel):
+    baseline_features: dict[str, Any]
+    scenario_features: dict[str, Any]
+
+
+class WhatIfResponse(BaseModel):
+    baseline: PredictResponse
+    scenario: PredictResponse
+    delta_probability: float
