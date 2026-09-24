@@ -28,6 +28,16 @@ def _clean_warning(warning: str) -> str:
     return _LEADING_EMOJI_RE.sub("", warning).strip()
 
 
+def _coerce_numeric_text(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert text columns that are really numbers (e.g. "29.85" with a few
+    blank cells) to numeric, so they aren't treated as huge categories."""
+    for col in df.select_dtypes(include="object").columns:
+        converted = pd.to_numeric(df[col].str.strip(), errors="coerce")
+        if converted.notna().sum() >= 0.95 * df[col].notna().sum():
+            df[col] = converted
+    return df
+
+
 def _summarize(df: pd.DataFrame) -> DatasetSummary:
     # Use DataHandler for data quality checks
     handler = DataHandler(df)
@@ -95,7 +105,7 @@ async def upload_dataset(file: UploadFile):
     except Exception:
         raise HTTPException(status_code=400, detail="Could not parse CSV — check the file is valid CSV format")
     state = get_state()
-    state.df = df
+    state.df = _coerce_numeric_text(df)
     state.reset_model()
     state.dataset_summary = _summarize(state.df)
     return state.dataset_summary

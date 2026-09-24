@@ -51,3 +51,16 @@ def test_categories_returns_known_values(client):
     assert response.status_code == 200
     categories = response.json()["categories"]
     assert set(categories["contract_type"]) == {"Month-to-month", "One year", "Two year"}
+
+
+def test_upload_converts_numeric_text_columns(client):
+    rows = "".join(f"{i}.5,{'a' if i % 2 else 'b'}\n" for i in range(40))
+    csv = "amount,label\n" + " ,a\n" + rows
+    response = client.post(
+        "/api/datasets/upload",
+        files={"file": ("d.csv", csv.encode(), "text/csv")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "amount" in body["numeric_columns"]
+    assert "amount" not in body["categorical_columns"]
