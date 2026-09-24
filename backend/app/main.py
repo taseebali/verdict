@@ -4,10 +4,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import datasets
+from app.routers import datasets, results, training
 
 app = FastAPI(title="Verdict API")
 app.include_router(datasets.router)
+app.include_router(training.router)
+app.include_router(results.router)
 
 
 @app.get("/api/health")
