@@ -310,12 +310,13 @@ def row_reasons(model: "TrainedModel", X_rows: pd.DataFrame) -> list[list[Reason
             contrib[:, j] = col_contrib[:, col_idx]
             col_idx += 1
         # Categorical features: sum one-hot columns per feature
-        encoder = prep.named_transformers_["cat"].named_steps["encode"]
-        for j, feature in enumerate(model.categorical):
-            feat_idx = len(model.numeric) + j
-            n_cats = len(encoder.categories_[j])
-            contrib[:, feat_idx] = col_contrib[:, col_idx:col_idx + n_cats].sum(axis=1)
-            col_idx += n_cats
+        if model.categorical:
+            encoder = prep.named_transformers_["cat"].named_steps["encode"]
+            for j, feature in enumerate(model.categorical):
+                feat_idx = len(model.numeric) + j
+                n_cats = len(encoder.categories_[j])
+                contrib[:, feat_idx] = col_contrib[:, col_idx:col_idx + n_cats].sum(axis=1)
+                col_idx += n_cats
     names = model.features
     out = []
     for i in range(len(X_rows)):

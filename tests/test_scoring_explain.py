@@ -105,3 +105,16 @@ def test_logistic_regression_categorical_reasons_meaningful():
     # Red rows should have stronger color signal than non-red rows
     if red_impacts and non_red_impacts:
         assert np.mean(red_impacts) > np.max(non_red_impacts)
+
+
+def test_logistic_regression_all_numeric_no_error():
+    """Regression: row_reasons should work on all-numeric datasets with logistic_regression."""
+    df = _frame().drop(columns="color")
+    model = fit_with_oof(df, "target", "Yes", method="logistic_regression")
+    X = prepare_features(df.head(10), model.numeric, model.categorical)
+    reasons = row_reasons(model, X)
+    assert len(reasons) == 10
+    for row in reasons:
+        assert len(row) <= 3
+        assert all(r.impact > 0 for r in row)
+        assert all(r.feature in model.features for r in row)
