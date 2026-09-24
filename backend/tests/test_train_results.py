@@ -2,6 +2,10 @@ import csv
 import io
 from pathlib import Path
 
+import pandas as pd
+
+from app.routers.results import row_labels
+
 TELCO_CSV = Path(__file__).parents[2] / "data" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
 
 
@@ -86,6 +90,18 @@ def test_rows_use_the_identifier_column_as_label(client):
     rows = client.get("/api/results/rows?limit=5").json()["rows"]
     assert all(not r["label"].startswith("#") for r in rows)
     assert all(len(r["label"]) > 4 for r in rows)
+
+
+def test_row_labels_falls_back_to_position_for_missing_identifier():
+    frame = pd.DataFrame({"id": ["A1", float("nan")]}, index=[0, 1])
+    assert row_labels(frame, ["id"]) == ["A1", "#2"]
+
+
+def test_rows_does_not_deadlock(client):
+    _demo_trained(client)
+    assert client.get("/api/results/rows").status_code == 200
+    assert client.get("/api/results/rows").status_code == 200
+    assert client.get("/api/results/export.csv").status_code == 200
 
 
 def test_export_csv(client):
