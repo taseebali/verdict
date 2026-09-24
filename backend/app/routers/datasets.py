@@ -32,9 +32,9 @@ def _coerce_numeric_text(df: pd.DataFrame) -> pd.DataFrame:
     """Convert text columns that are really numbers (e.g. "29.85" with a few
     blank cells) to numeric, so they aren't treated as huge categories."""
     for col in df.select_dtypes(include="object").columns:
-        converted = pd.to_numeric(df[col].str.strip(), errors="coerce")
+        converted = pd.to_numeric(df[col].astype("string").str.strip(), errors="coerce")
         if converted.notna().sum() >= 0.95 * df[col].notna().sum():
-            df[col] = converted
+            df[col] = converted.astype("float64")
     return df
 
 

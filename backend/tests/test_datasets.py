@@ -75,6 +75,18 @@ def test_sample_row_with_blank_rows_returns_no_nan(client):
         assert all(v is not None for v in features.values())
 
 
+def test_coerce_numeric_text_handles_mixed_type_column():
+    import pandas as pd
+
+    from app.routers.datasets import _coerce_numeric_text
+
+    df = pd.DataFrame({"amount": [1, 2, "12.5", "3.5", 4]})
+    result = _coerce_numeric_text(df)
+    assert result["amount"].dtype == "float64"
+    assert not result["amount"].isna().any()
+    assert result["amount"].tolist() == [1.0, 2.0, 12.5, 3.5, 4.0]
+
+
 def test_upload_converts_numeric_text_columns(client):
     rows = "".join(f"{i}.5,{'a' if i % 2 else 'b'}\n" for i in range(40))
     csv = "amount,label\n" + " ,a\n" + rows
