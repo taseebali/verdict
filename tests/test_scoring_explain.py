@@ -76,6 +76,32 @@ def test_score_frame_needs_model_columns_and_tolerates_unseen_values():
 @pytest.mark.parametrize("value, expected", [
     (2.0, "2"), (1234.0, "1,234"), (0.456, "0.46"), (12345.67, "12,346"),
     (np.nan, "(missing)"), (None, "(missing)"), ("Month-to-month", "Month-to-month"),
+    (True, "True"), (False, "False"), (np.bool_(True), "True"),
 ])
 def test_format_value(value, expected):
     assert format_value(value) == expected
+
+
+def test_logistic_regression_categorical_reasons_meaningful():
+    """For LR, red rows should have positive color impact; non-red rows should have smaller impact."""
+    df = _frame(n=200)
+    model = fit_with_oof(df, "target", "Yes", method="logistic_regression")
+    X = prepare_features(df, model.numeric, model.categorical)
+    reasons = row_reasons(model, X)
+
+    # Collect color impacts
+    red_impacts = []
+    non_red_impacts = []
+    for i, reason_list in enumerate(reasons):
+        color_reason = [r for r in reason_list if r.feature == "color"]
+        color_val = df.iloc[i]["color"]
+        if color_reason:
+            impact = color_reason[0].impact
+            if color_val == "red":
+                red_impacts.append(impact)
+            else:
+                non_red_impacts.append(impact)
+
+    # Red rows should have stronger color signal than non-red rows
+    if red_impacts and non_red_impacts:
+        assert np.mean(red_impacts) > np.max(non_red_impacts)

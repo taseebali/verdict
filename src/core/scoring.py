@@ -18,7 +18,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer, OrdinalEncoder, StandardScaler
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder, StandardScaler
 
 from src.core.constants import LOGISTIC_REGRESSION_PARAMS, RANDOM_FOREST_PARAMS, RANDOM_SEED
 
@@ -98,10 +98,14 @@ def build_pipeline(numeric: list[str], categorical: list[str], method: str) -> P
             ("scale", StandardScaler()),
         ]), numeric))
     if categorical:
+        if method == "random_forest":
+            encoder = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+        else:  # logistic_regression
+            encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         transformers.append(("cat", Pipeline([
             ("impute", SimpleImputer(strategy="constant", fill_value="(missing)", keep_empty_features=True)),
             ("text", FunctionTransformer(_as_str)),
-            ("encode", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
+            ("encode", encoder),
         ]), categorical))
     clf = (RandomForestClassifier(**RANDOM_FOREST_PARAMS) if method == "random_forest"
            else LogisticRegression(**LOGISTIC_REGRESSION_PARAMS))
@@ -297,7 +301,21 @@ def row_reasons(model: "TrainedModel", X_rows: pd.DataFrame) -> list[list[Reason
         values = shap.TreeExplainer(clf).shap_values(Xt)
         contrib = values[1] if isinstance(values, list) else values[..., 1]
     else:
-        contrib = Xt * clf.coef_[0]
+        # For LogisticRegression with one-hot encoding, sum contributions per original feature
+        col_contrib = Xt * clf.coef_[0]
+        contrib = np.zeros((len(X_rows), len(model.features)))
+        col_idx = 0
+        # Numeric features: 1:1 mapping
+        for j in range(len(model.numeric)):
+            contrib[:, j] = col_contrib[:, col_idx]
+            col_idx += 1
+        # Categorical features: sum one-hot columns per feature
+        encoder = prep.named_transformers_["cat"].named_steps["encode"]
+        for j, feature in enumerate(model.categorical):
+            feat_idx = len(model.numeric) + j
+            n_cats = len(encoder.categories_[j])
+            contrib[:, feat_idx] = col_contrib[:, col_idx:col_idx + n_cats].sum(axis=1)
+            col_idx += n_cats
     names = model.features
     out = []
     for i in range(len(X_rows)):
