@@ -11,7 +11,7 @@ class DataHandler:
 
     def __init__(self, df: pd.DataFrame):
         """Initialize with a DataFrame."""
-        self.df = df
+        self.df = df.copy()
         self.original_df = df.copy()
         self.numeric_cols = []
         self.categorical_cols = []

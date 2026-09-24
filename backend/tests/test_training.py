@@ -58,3 +58,23 @@ def test_train_reports_dropped_identifier_columns(client):
     )
     assert response.status_code == 200
     assert response.json()["dropped_features"] == ["customer_id"]
+
+
+def test_training_does_not_mutate_stored_dataset(client):
+    df = pd.read_csv(DEMO_CSV).head(500)
+    # Blank a few cells in a numeric column so handle_missing_values() has
+    # rows to drop internally.
+    df.loc[0:9, "monthly_charges"] = None
+    original_row_count = len(df)
+    client.post(
+        "/api/datasets/upload",
+        files={"file": ("d.csv", df.to_csv(index=False).encode(), "text/csv")},
+    )
+    response = client.post(
+        "/api/train",
+        json={"target": "churn", "features": None, "method": "random_forest"},
+    )
+    assert response.status_code == 200
+
+    from app.state import get_state
+    assert len(get_state().df) == original_row_count
