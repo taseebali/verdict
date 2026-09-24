@@ -50,42 +50,34 @@ class Preprocessor:
         
         self.df = df_encoded
 
-    def scale_features(self, X: pd.DataFrame) -> np.ndarray:
-        """Scale numeric features using StandardScaler."""
-        X_scaled = X.copy()
-        
-        if self.numeric_cols:
-            X_scaled[self.numeric_cols] = self.scaler.fit_transform(X[self.numeric_cols])
-        
-        return X_scaled
-
     def prepare_data(self, test_size: Optional[float] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Prepare data for training.
-        
+
         Returns:
             Tuple of (X_train, X_test, y_train, y_test)
         """
         if test_size is None:
             test_size = TEST_SIZE
-        
+
         # Encode categorical variables
         self.encode_categorical()
-        
+
         # Separate features and target
         X = self.df.drop(columns=[self.target_col])
         y = self.df[self.target_col]
-        
+
         # Store feature names
         self.feature_names = X.columns.tolist()
-        
-        # Scale numeric features
-        X_scaled = self.scale_features(X)
-        
-        # Split data
+
+        # Split before scaling so test-set statistics never reach the scaler.
         X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y, test_size=test_size, random_state=RANDOM_SEED, stratify=y if self.is_classification else None
+            X, y, test_size=test_size, random_state=RANDOM_SEED, stratify=y if self.is_classification else None
         )
-        
+        X_train, X_test = X_train.copy(), X_test.copy()
+        if self.numeric_cols:
+            X_train[self.numeric_cols] = self.scaler.fit_transform(X_train[self.numeric_cols])
+            X_test[self.numeric_cols] = self.scaler.transform(X_test[self.numeric_cols])
+
         return X_train, X_test, y_train, y_test
 
     def get_feature_names(self) -> List[str]:

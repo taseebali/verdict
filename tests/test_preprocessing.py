@@ -30,3 +30,10 @@ def test_numeric_target_is_left_alone():
     p = Preprocessor(df, "target")
     p.prepare_data()
     assert p.target_encoder is None
+
+
+def test_scaler_is_fit_on_training_rows_only():
+    p = Preprocessor(_df(), "target")
+    X_train, X_test, _, _ = p.prepare_data()
+    assert p.scaler.n_samples_seen_ == len(X_train)
+    assert abs(X_train["x"].mean()) < 1e-9
