@@ -43,7 +43,7 @@ class Preprocessor:
         self.is_classification = self.df[self.target_col].dtype in CATEGORICAL_FEATURES_DTYPE or \
                                   self.df[self.target_col].nunique() < 20
         
-        if self.is_classification and self.target_col in self.categorical_cols:
+        if self.is_classification and not pd.api.types.is_numeric_dtype(self.df[self.target_col]):
             le = LabelEncoder()
             df_encoded[self.target_col] = le.fit_transform(df_encoded[self.target_col].astype(str))
             self.target_encoder = le
