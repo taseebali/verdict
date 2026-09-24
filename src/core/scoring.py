@@ -4,6 +4,7 @@ One sklearn Pipeline does imputation, scaling and encoding, so there is no
 leakage inside cross-validation and raw rows (new files, what-if edits,
 unseen categories) can be scored directly.
 """
+import math
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
@@ -12,6 +13,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
@@ -174,7 +176,7 @@ def fit_with_oof(df: pd.DataFrame, target: str, positive_class: str,
     final = build_pipeline(numeric, categorical, method).fit(X, y)
     fpr, tpr, _ = roc_curve(y, oof)
 
-    return TrainedModel(
+    model = TrainedModel(
         target=target,
         positive_class=positive_class,
         method=method,
@@ -190,3 +192,127 @@ def fit_with_oof(df: pd.DataFrame, target: str, positive_class: str,
         roc_points=_downsample(fpr, tpr),
         rows_skipped=int((~keep).sum()),
     )
+    model.importance = feature_importance(final, X, y)
+    model.drivers = describe_drivers(X, y, model.importance, numeric)
+    return model
+
+
+@dataclass
+class Driver:
+    feature: str
+    segment: str
+    rate: float
+    overall: float
+    share: float
+
+    @property
+    def lift(self) -> float:
+        return self.rate / self.overall if self.overall else 0.0
+
+
+@dataclass
+class Reason:
+    feature: str
+    value: str
+    impact: float
+
+
+def format_value(value) -> str:
+    """Human-readable cell value for reasons and segment labels."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return "(missing)"
+    if isinstance(value, (int, float, np.integer, np.floating)) and not isinstance(value, bool):
+        v = float(value)
+        if v.is_integer():
+            return f"{int(v):,}"
+        return f"{v:,.2f}" if abs(v) < 1000 else f"{v:,.0f}"
+    return str(value)
+
+
+def feature_importance(pipeline: Pipeline, X: pd.DataFrame, y: np.ndarray,
+                       max_rows: int = 1000) -> list[tuple[str, float]]:
+    """Permutation importance (drop in ROC AUC) on raw columns, negatives clipped to 0."""
+    if len(X) > max_rows:
+        idx = np.random.default_rng(RANDOM_SEED).choice(len(X), max_rows, replace=False)
+        X, y = X.iloc[idx], y[idx]
+    if len(np.unique(y)) < 2:
+        return [(col, 0.0) for col in X.columns]
+    result = permutation_importance(pipeline, X, y, n_repeats=3, random_state=RANDOM_SEED, scoring="roc_auc")
+    scores = np.clip(result.importances_mean, 0, None)
+    return sorted(((col, float(s)) for col, s in zip(X.columns, scores)), key=lambda t: t[1], reverse=True)
+
+
+def describe_drivers(X: pd.DataFrame, y: np.ndarray, importance: list[tuple[str, float]],
+                     numeric: list[str], top: int = 5) -> list[Driver]:
+    """For the most important columns, the segment with the highest outcome rate.
+
+    Measured on the data itself (association, not causation). Tiny segments
+    are ignored: a segment needs min(30, max(5, 2% of rows)) rows.
+    """
+    outcome = pd.Series(np.asarray(y, dtype=float), index=X.index)
+    overall = float(outcome.mean())
+    min_rows = min(30, max(5, math.ceil(0.02 * len(X))))
+    drivers: list[Driver] = []
+    for feature, score in importance:
+        if len(drivers) == top:
+            break
+        if score <= 0:
+            continue
+        col = X[feature]
+        if feature in numeric:
+            try:
+                groups = pd.qcut(col, q=4, duplicates="drop")
+            except ValueError:
+                continue
+        else:
+            groups = col.astype(object).where(col.notna(), "(missing)").astype(str)
+        stats = outcome.groupby(groups, observed=True).agg(["mean", "size"])
+        stats = stats[stats["size"] >= min_rows]
+        if stats.empty:
+            continue
+        best = stats["mean"].idxmax()
+        if feature in numeric:
+            members = col[groups == best]
+            segment = f"{feature} {format_value(members.min())} – {format_value(members.max())}"
+        else:
+            segment = f"{feature} = {best}"
+        drivers.append(Driver(
+            feature=feature,
+            segment=segment,
+            rate=float(stats.loc[best, "mean"]),
+            overall=overall,
+            share=float(stats.loc[best, "size"] / len(X)),
+        ))
+    return drivers
+
+
+def row_reasons(model: "TrainedModel", X_rows: pd.DataFrame) -> list[list[Reason]]:
+    """Top 3 features pushing each row toward the positive outcome."""
+    prep = model.pipeline.named_steps["prep"]
+    clf = model.pipeline.named_steps["clf"]
+    Xt = np.asarray(prep.transform(X_rows), dtype=float)
+    if isinstance(clf, RandomForestClassifier):
+        import shap  # heavy import; only needed here
+
+        values = shap.TreeExplainer(clf).shap_values(Xt)
+        contrib = values[1] if isinstance(values, list) else values[..., 1]
+    else:
+        contrib = Xt * clf.coef_[0]
+    names = model.features
+    out = []
+    for i in range(len(X_rows)):
+        order = np.argsort(-contrib[i])[:3]
+        out.append([
+            Reason(feature=names[j], value=format_value(X_rows.iloc[i][names[j]]), impact=float(contrib[i][j]))
+            for j in order if contrib[i][j] > 0
+        ])
+    return out
+
+
+def score_frame(model: "TrainedModel", df_new: pd.DataFrame) -> np.ndarray:
+    """P(positive) for each row of a new frame; extra columns are ignored."""
+    missing = [c for c in model.features if c not in df_new.columns]
+    if missing:
+        raise ValueError(f"The file is missing column(s) the model needs: {', '.join(missing)}")
+    X = prepare_features(df_new, model.numeric, model.categorical)
+    return model.pipeline.predict_proba(X)[:, 1]
