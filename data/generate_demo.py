@@ -184,7 +184,7 @@ def generate_realistic_dataset(n_samples=5000):
     all_data["customer_lifetime_value"] = (
         (all_data["monthly_charges"] * 12 * (72 - all_data["tenure_months"]) / 72) +
         (all_data["tenure_months"] * 50) +
-        ((2 - all_data["satisfaction"]) * 800) +
+        (all_data["satisfaction"] * 800) +
         (all_data["nps_score"] * 15) +
         np.random.normal(0, 300, n_total)
     )
