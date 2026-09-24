@@ -53,6 +53,28 @@ def test_categories_returns_known_values(client):
     assert set(categories["contract_type"]) == {"Month-to-month", "One year", "Two year"}
 
 
+def test_sample_row_with_blank_rows_returns_no_nan(client):
+    # 15 of 20 rows have a blank "charges" cell (like Telco's TotalCharges) —
+    # state.df.sample(n=1) can land on one of those and fail to JSON-encode
+    # the resulting NaN.
+    rows = []
+    for i in range(20):
+        charges = "" if i % 4 != 0 else f"{i}.5"
+        rows.append(f"{i},{charges}\n")
+    csv = "id,charges\n" + "".join(rows)
+    response = client.post(
+        "/api/datasets/upload",
+        files={"file": ("blanks.csv", csv.encode(), "text/csv")},
+    )
+    assert response.status_code == 200
+
+    for _ in range(20):
+        response = client.get("/api/datasets/sample-row")
+        assert response.status_code == 200
+        features = response.json()["features"]
+        assert all(v is not None for v in features.values())
+
+
 def test_upload_converts_numeric_text_columns(client):
     rows = "".join(f"{i}.5,{'a' if i % 2 else 'b'}\n" for i in range(40))
     csv = "amount,label\n" + " ,a\n" + rows

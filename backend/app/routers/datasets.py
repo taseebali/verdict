@@ -124,8 +124,16 @@ def get_sample_row():
     state = get_state()
     if state.df is None:
         raise HTTPException(status_code=404, detail="No dataset loaded yet")
-    row = state.df.sample(n=1).iloc[0]
-    features = {col: (val.item() if hasattr(val, "item") else val) for col, val in row.items()}
+    clean_df = state.df.dropna()
+    source_df = clean_df if len(clean_df) > 0 else state.df
+    row = source_df.sample(n=1).iloc[0]
+    features = {}
+    for col, val in row.items():
+        if pd.isna(val):
+            val = None
+        elif hasattr(val, "item"):
+            val = val.item()
+        features[col] = val
     return SampleRowResponse(features=features)
 
 
