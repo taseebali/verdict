@@ -46,4 +46,9 @@ AI_Decision_Copilot.pdf
 .data/datasets.txt
 data/datasets
 .gitignore
+node_modules/
+frontend/dist/
+audit_logs/
+*.egg-info/
+docs/superpowers/
 
