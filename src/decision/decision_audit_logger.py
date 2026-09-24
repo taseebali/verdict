@@ -174,6 +174,11 @@ class DecisionAuditLogger:
         confidences = [r["confidence"] for r in predictions]
         predictions_list = [r["prediction"] for r in predictions]
 
+        prediction_counts: Dict[str, int] = {}
+        for p in predictions_list:
+            key = str(p)
+            prediction_counts[key] = prediction_counts.get(key, 0) + 1
+
         return {
             "total_records": len(self.audit_records),
             "total_predictions": len(predictions),
@@ -183,8 +188,11 @@ class DecisionAuditLogger:
             "high_confidence_count": sum(1 for c in confidences if c > 0.8),
             "medium_confidence_count": sum(1 for c in confidences if 0.6 <= c <= 0.8),
             "low_confidence_count": sum(1 for c in confidences if c < 0.6),
+            # Kept for backward compatibility; only meaningful for binary
+            # 0/1 targets. Use `prediction_counts` for any label type.
             "positive_predictions": sum(1 for p in predictions_list if p == 1),
             "negative_predictions": sum(1 for p in predictions_list if p == 0),
+            "prediction_counts": prediction_counts,
             "first_record_time": predictions[0]["timestamp"] if predictions else None,
             "last_record_time": predictions[-1]["timestamp"] if predictions else None,
         }
@@ -195,6 +203,11 @@ class DecisionAuditLogger:
 
         if stats["total_records"] == 0:
             return "No audit records found."
+
+        prediction_breakdown = "\n".join(
+            f"- Prediction '{label}': {count}"
+            for label, count in stats["prediction_counts"].items()
+        )
 
         report = f"""
 === AUDIT LOG REPORT ===
@@ -207,8 +220,7 @@ STATISTICS:
 - High Confidence: {stats['high_confidence_count']} ({stats['high_confidence_count']/stats['total_predictions']*100:.1f}%)
 - Medium Confidence: {stats['medium_confidence_count']} ({stats['medium_confidence_count']/stats['total_predictions']*100:.1f}%)
 - Low Confidence: {stats['low_confidence_count']} ({stats['low_confidence_count']/stats['total_predictions']*100:.1f}%)
-- Positive Predictions: {stats['positive_predictions']}
-- Negative Predictions: {stats['negative_predictions']}
+{prediction_breakdown}
 - Time Range: {stats['first_record_time']} to {stats['last_record_time']}
 """
 

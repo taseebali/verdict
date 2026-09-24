@@ -1,3 +1,16 @@
+def test_get_statistics_prediction_counts_for_text_labels():
+    from src.decision.decision_audit_logger import DecisionAuditLogger
+
+    logger = DecisionAuditLogger(log_dir="audit_logs")
+    logger.log_prediction(prediction="Yes", probability=0.9, confidence=0.9, model_name="rf")
+    logger.log_prediction(prediction="No", probability=0.2, confidence=0.8, model_name="rf")
+    logger.log_prediction(prediction="Yes", probability=0.7, confidence=0.7, model_name="rf")
+
+    stats = logger.get_statistics()
+    assert stats["prediction_counts"] == {"Yes": 2, "No": 1}
+    assert sum(stats["prediction_counts"].values()) == stats["total_predictions"]
+
+
 def test_audit_logs_after_prediction(client):
     client.post("/api/datasets/demo")
     client.post("/api/train", json={"target": "churn", "features": None, "method": "random_forest"})

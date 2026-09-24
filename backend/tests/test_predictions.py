@@ -144,7 +144,6 @@ def test_predict_matches_pipeline_transform_directly(client):
     assert body["confidence"] == pytest.approx(float(max(direct_proba)), abs=1e-6)
 
 
-
 DEMO_CSV = Path(__file__).parents[2] / "data" / "verdict_demo.csv"
 
 
