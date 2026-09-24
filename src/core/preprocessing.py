@@ -17,13 +17,24 @@ class Preprocessor:
         self.target_col = target_col
         self.numeric_cols = df.select_dtypes(include=NUMERIC_FEATURES_DTYPE).columns.tolist()
         self.categorical_cols = df.select_dtypes(include=CATEGORICAL_FEATURES_DTYPE).columns.tolist()
-        
+
         # Remove target from feature lists
         if self.target_col in self.numeric_cols:
             self.numeric_cols.remove(self.target_col)
         if self.target_col in self.categorical_cols:
             self.categorical_cols.remove(self.target_col)
-        
+
+        # Text columns where every row is distinct (customer IDs, emails) carry
+        # no signal and let the model memorise rows. Only meaningful on frames
+        # large enough that "all distinct" isn't a coincidence.
+        self.dropped_columns = [
+            c for c in self.categorical_cols
+            if len(df) >= 50 and df[c].nunique() == len(df)
+        ]
+        if self.dropped_columns:
+            self.df = self.df.drop(columns=self.dropped_columns)
+            self.categorical_cols = [c for c in self.categorical_cols if c not in self.dropped_columns]
+
         self.scaler = StandardScaler()
         self.label_encoders = {}
         self.target_encoder = None

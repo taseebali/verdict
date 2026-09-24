@@ -37,3 +37,21 @@ def test_scaler_is_fit_on_training_rows_only():
     X_train, X_test, _, _ = p.prepare_data()
     assert p.scaler.n_samples_seen_ == len(X_train)
     assert abs(X_train["x"].mean()) < 1e-9
+
+
+def test_all_unique_text_column_is_dropped_as_identifier():
+    df = _df()
+    df["customer_id"] = [f"C{i:04d}" for i in range(len(df))]
+    p = Preprocessor(df, "target")
+    p.prepare_data()
+    assert "customer_id" not in p.get_feature_names()
+    assert p.dropped_columns == ["customer_id"]
+
+
+def test_small_frames_keep_unique_text_columns():
+    df = _df(n=20)
+    df["name"] = [f"n{i}" for i in range(20)]
+    p = Preprocessor(df, "target")
+    p.prepare_data()
+    assert "name" in p.get_feature_names()
+    assert p.dropped_columns == []
