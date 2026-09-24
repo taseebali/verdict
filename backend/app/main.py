@@ -1,30 +1,13 @@
-import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import datasets, training, predictions, audit, models
+from app.routers import datasets
 
 app = FastAPI(title="Verdict API")
-
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.include_router(datasets.router)
-app.include_router(training.router)
-app.include_router(predictions.router)
-app.include_router(audit.router)
-app.include_router(models.router)
 
 
 @app.get("/api/health")

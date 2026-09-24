@@ -1,100 +1,92 @@
+from pathlib import Path
+
+import pandas as pd
+
+from app import uploads
+
+TELCO_CSV = Path(__file__).parents[2] / "data" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
+
+
+def _upload(client, text: str, name: str = "d.csv"):
+    return client.post("/api/datasets/upload", files={"file": (name, text.encode(), "text/csv")})
+
+
 def test_health(client):
-    response = client.get("/api/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert client.get("/api/health").json() == {"status": "ok"}
 
 
-def test_load_demo_dataset(client):
+def test_demo_profile(client):
     response = client.post("/api/datasets/demo")
     assert response.status_code == 200
     body = response.json()
+    assert body["name"] == "verdict_demo.csv"
     assert body["rows"] == 5000
-    assert body["columns"] == 25
-    assert "churn" in body["numeric_columns"] or "churn" in body["categorical_columns"]
+    assert len(body["preview"]) == 20
+    assert body["target_suggestions"][0] == "churn"
+    kinds = {c["name"]: c["kind"] for c in body["columns"]}
+    assert kinds["tenure_months"] == "numeric"
+    assert kinds["contract_type"] == "categorical"
+    churn = next(c for c in body["columns"] if c["name"] == "churn")
+    assert {v["value"] for v in churn["top_values"]} == {"0", "1"}
 
 
-def test_upload_dataset(client):
-    csv_content = b"a,b,target\n1,2,0\n3,4,1\n5,6,0\n"
-    response = client.post(
-        "/api/datasets/upload",
-        files={"file": ("test.csv", csv_content, "text/csv")},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["rows"] == 3
-    assert body["columns"] == 3
+def test_session_cookie_is_http_only_and_lax(client):
+    response = client.post("/api/datasets/demo")
+    cookie = response.headers["set-cookie"].lower()
+    assert "verdict_sid=" in cookie
+    assert "httponly" in cookie
+    assert "samesite=lax" in cookie
 
 
-def test_current_summary_before_load_returns_404(client):
-    response = client.get("/api/datasets/current")
-    assert response.status_code == 404
-
-
-def test_sample_row_returns_a_real_row(client):
+def test_visitors_do_not_see_each_others_data(client, other_client):
     client.post("/api/datasets/demo")
-    response = client.get("/api/datasets/sample-row")
-    assert response.status_code == 200
-    features = response.json()["features"]
-    assert "churn" in features
-    assert "contract_type" in features
-    assert features["contract_type"] in ["Month-to-month", "One year", "Two year"]
-
-
-def test_sample_row_before_load_returns_404(client):
-    response = client.get("/api/datasets/sample-row")
+    assert client.get("/api/datasets/current").status_code == 200
+    response = other_client.get("/api/datasets/current")
     assert response.status_code == 404
+    assert response.json()["detail"].startswith("No dataset loaded")
 
 
-def test_categories_returns_known_values(client):
-    client.post("/api/datasets/demo")
-    response = client.get("/api/datasets/categories")
+def test_upload_identifies_id_columns_and_parses_numeric_text(client):
+    with open(TELCO_CSV, "rb") as f:
+        response = client.post("/api/datasets/upload", files={"file": ("telco.csv", f, "text/csv")})
     assert response.status_code == 200
-    categories = response.json()["categories"]
-    assert set(categories["contract_type"]) == {"Month-to-month", "One year", "Two year"}
+    kinds = {c["name"]: c["kind"] for c in response.json()["columns"]}
+    assert kinds["customerID"] == "identifier"
+    assert kinds["TotalCharges"] == "numeric"
+    assert response.json()["target_suggestions"][0] == "Churn"
 
 
-def test_sample_row_with_blank_rows_returns_no_nan(client):
-    # 15 of 20 rows have a blank "charges" cell (like Telco's TotalCharges) —
-    # state.df.sample(n=1) can land on one of those and fail to JSON-encode
-    # the resulting NaN.
-    rows = []
-    for i in range(20):
-        charges = "" if i % 4 != 0 else f"{i}.5"
-        rows.append(f"{i},{charges}\n")
-    csv = "id,charges\n" + "".join(rows)
-    response = client.post(
-        "/api/datasets/upload",
-        files={"file": ("blanks.csv", csv.encode(), "text/csv")},
-    )
-    assert response.status_code == 200
-
-    for _ in range(20):
-        response = client.get("/api/datasets/sample-row")
-        assert response.status_code == 200
-        features = response.json()["features"]
-        assert all(v is not None for v in features.values())
+def test_preview_nulls_are_json_null(client):
+    csv = "a,b\n1,x\n,y\n" + "".join(f"{i},z\n" for i in range(30))
+    body = _upload(client, csv).json()
+    assert body["preview"][1]["a"] is None
 
 
-def test_coerce_numeric_text_handles_mixed_type_column():
-    import pandas as pd
-
-    from app.routers.datasets import _coerce_numeric_text
-
-    df = pd.DataFrame({"amount": [1, 2, "12.5", "3.5", 4]})
-    result = _coerce_numeric_text(df)
-    assert result["amount"].dtype == "float64"
-    assert not result["amount"].isna().any()
-    assert result["amount"].tolist() == [1.0, 2.0, 12.5, 3.5, 4.0]
+def test_non_csv_is_rejected(client):
+    response = _upload(client, "a,b\n1,2\n", name="d.txt")
+    assert response.status_code == 400
 
 
-def test_upload_converts_numeric_text_columns(client):
-    rows = "".join(f"{i}.5,{'a' if i % 2 else 'b'}\n" for i in range(40))
-    csv = "amount,label\n" + " ,a\n" + rows
-    response = client.post(
-        "/api/datasets/upload",
-        files={"file": ("d.csv", csv.encode(), "text/csv")},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert "amount" in body["numeric_columns"]
-    assert "amount" not in body["categorical_columns"]
+def test_empty_file_is_rejected(client):
+    assert _upload(client, "").status_code == 400
+
+
+def test_too_large_upload_is_413(client, monkeypatch):
+    monkeypatch.setattr(uploads, "MAX_UPLOAD_BYTES", 10)
+    response = _upload(client, "a,b\n1,2\n3,4\n5,6\n")
+    assert response.status_code == 413
+    assert "20 MB" in response.json()["detail"]
+
+
+def test_too_many_rows_is_400(client, monkeypatch):
+    monkeypatch.setattr(uploads, "MAX_ROWS", 3)
+    response = _upload(client, "a\n1\n2\n3\n4\n")
+    assert response.status_code == 400
+    assert "100,000" in response.json()["detail"]
+
+
+def test_mixed_type_numeric_text_becomes_float():
+    df = pd.DataFrame({"amount": pd.Series([1, "12.5", " 3 ", None], dtype=object)})
+    out = uploads.coerce_numeric_text(df)
+    assert str(out["amount"].dtype) == "float64"
+    assert out["amount"].tolist()[:3] == [1.0, 12.5, 3.0]

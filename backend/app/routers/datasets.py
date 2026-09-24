@@ -1,150 +1,66 @@
-import io
-import re
+import json
 from pathlib import Path
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, UploadFile
 
-from app.schemas import CategoriesResponse, DatasetSummary, SampleRowResponse
-from app.state import get_state
-from src.core.data_handler import DataHandler
+from app.schemas import ColumnProfile, DatasetProfile, ValueCount
+from app.sessions import Session, get_session, require_dataset
+from app.uploads import read_csv_upload
+from src.core.scoring import infer_roles, target_suggestions
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
 DEMO_DATA_PATH = Path(__file__).parent.parent.parent.parent / "data" / "verdict_demo.csv"
-
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
-
-# Categorical columns with more unique values than this aren't useful as a
-# dropdown (likely a free-text/ID-like column) - fall back to a text input.
-MAX_CATEGORY_OPTIONS = 50
-
-# DataHandler prefixes quality warnings with an emoji marker (e.g. "⚠️  ...");
-# strip any leading non-ASCII/whitespace characters before they reach the UI.
-_LEADING_EMOJI_RE = re.compile(r"^[^\w(]+\s*")
+PREVIEW_ROWS = 20
+MAX_TOP_VALUES = 20
 
 
-def _clean_warning(warning: str) -> str:
-    return _LEADING_EMOJI_RE.sub("", warning).strip()
+def build_profile(name: str, df: pd.DataFrame) -> DatasetProfile:
+    roles = infer_roles(df)
+    kinds = {**{c: "numeric" for c in roles.numeric},
+             **{c: "categorical" for c in roles.categorical},
+             **{c: "identifier" for c in roles.identifiers}}
+    columns = []
+    for col in df.columns:
+        series = df[col]
+        unique = int(series.nunique())
+        top = []
+        if unique <= MAX_TOP_VALUES:
+            counts = series.dropna().astype(str).value_counts()
+            top = [ValueCount(value=str(v), count=int(n)) for v, n in counts.items()]
+        columns.append(ColumnProfile(
+            name=str(col),
+            kind=kinds[col],
+            missing_pct=round(float(series.isna().mean() * 100), 1),
+            unique=unique,
+            top_values=top,
+        ))
+    preview = json.loads(df.head(PREVIEW_ROWS).to_json(orient="records"))
+    return DatasetProfile(name=name, rows=len(df), columns=columns, preview=preview,
+                          target_suggestions=target_suggestions(df))
 
 
-def _coerce_numeric_text(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert text columns that are really numbers (e.g. "29.85" with a few
-    blank cells) to numeric, so they aren't treated as huge categories."""
-    for col in df.select_dtypes(include="object").columns:
-        converted = pd.to_numeric(df[col].astype("string").str.strip(), errors="coerce")
-        if converted.notna().sum() >= 0.95 * df[col].notna().sum():
-            df[col] = converted.astype("float64")
-    return df
+def _store(session: Session, name: str, df: pd.DataFrame) -> DatasetProfile:
+    with session.lock:
+        session.df = df
+        session.dataset_name = name
+        session.reset_model()
+    return build_profile(name, df)
 
 
-def _summarize(df: pd.DataFrame) -> DatasetSummary:
-    # Use DataHandler for data quality checks
-    handler = DataHandler(df)
-    summary = handler.get_data_summary()
-
-    numeric_cols = summary["numeric_columns"]
-    categorical_cols = summary["categorical_columns"]
-
-    # Calculate overall missing percentage
-    missing_pct = round(float(df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100, 2) if df.size else 0.0
-
-    # Get quality warnings from DataHandler
-    warnings: list[str] = []
-    try:
-        _, quality_warnings, _ = handler.validate_data_quality()
-        warnings.extend(_clean_warning(w) for w in quality_warnings)
-    except Exception:
-        # If validation fails, still return basic summary with no warnings
-        pass
-
-    # Add correlation check
-    if len(numeric_cols) >= 2:
-        corr = df[numeric_cols].corr().abs()
-        high_corr_pairs = 0
-        for i in range(len(corr.columns)):
-            for j in range(i + 1, len(corr.columns)):
-                if corr.iloc[i, j] > 0.9:
-                    high_corr_pairs += 1
-        if high_corr_pairs:
-            warnings.append(f"High correlation detected: {high_corr_pairs} feature pairs > 0.9")
-
-    return DatasetSummary(
-        rows=df.shape[0],
-        columns=df.shape[1],
-        numeric_columns=numeric_cols,
-        categorical_columns=categorical_cols,
-        missing_pct=missing_pct,
-        warnings=warnings,
-    )
+@router.post("/demo", response_model=DatasetProfile)
+def load_demo(session: Session = Depends(get_session)):
+    return _store(session, DEMO_DATA_PATH.name, pd.read_csv(DEMO_DATA_PATH))
 
 
-@router.post("/demo", response_model=DatasetSummary)
-def load_demo_dataset():
-    state = get_state()
-    if not DEMO_DATA_PATH.exists():
-        raise HTTPException(status_code=500, detail=f"Demo dataset not found at {DEMO_DATA_PATH}")
-    state.df = pd.read_csv(DEMO_DATA_PATH)
-    state.reset_model()
-    state.dataset_summary = _summarize(state.df)
-    return state.dataset_summary
+@router.post("/upload", response_model=DatasetProfile)
+async def upload(file: UploadFile, session: Session = Depends(get_session)):
+    df = await read_csv_upload(file)
+    return _store(session, file.filename, df)
 
 
-@router.post("/upload", response_model=DatasetSummary)
-async def upload_dataset(file: UploadFile):
-    if not file.filename or not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only CSV files are supported")
-    contents = await file.read(MAX_UPLOAD_BYTES + 1)
-    if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large — maximum upload size is {MAX_UPLOAD_BYTES // (1024 * 1024)}MB",
-        )
-    try:
-        df = pd.read_csv(io.BytesIO(contents))
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not parse CSV — check the file is valid CSV format")
-    state = get_state()
-    state.df = _coerce_numeric_text(df)
-    state.reset_model()
-    state.dataset_summary = _summarize(state.df)
-    return state.dataset_summary
-
-
-@router.get("/current", response_model=DatasetSummary)
-def get_current_dataset():
-    state = get_state()
-    if state.df is None or state.dataset_summary is None:
-        raise HTTPException(status_code=404, detail="No dataset loaded yet")
-    return state.dataset_summary
-
-
-@router.get("/sample-row", response_model=SampleRowResponse)
-def get_sample_row():
-    state = get_state()
-    if state.df is None:
-        raise HTTPException(status_code=404, detail="No dataset loaded yet")
-    clean_df = state.df.dropna()
-    source_df = clean_df if len(clean_df) > 0 else state.df
-    row = source_df.sample(n=1).iloc[0]
-    features = {}
-    for col, val in row.items():
-        if pd.isna(val):
-            val = None
-        elif hasattr(val, "item"):
-            val = val.item()
-        features[col] = val
-    return SampleRowResponse(features=features)
-
-
-@router.get("/categories", response_model=CategoriesResponse)
-def get_categories():
-    state = get_state()
-    if state.df is None or state.dataset_summary is None:
-        raise HTTPException(status_code=404, detail="No dataset loaded yet")
-    categories: dict[str, list[str]] = {}
-    for col in state.dataset_summary.categorical_columns:
-        uniques = state.df[col].dropna().unique().tolist()
-        if len(uniques) <= MAX_CATEGORY_OPTIONS:
-            categories[col] = sorted(str(v) for v in uniques)
-    return CategoriesResponse(categories=categories)
+@router.get("/current", response_model=DatasetProfile)
+def current(session: Session = Depends(get_session)):
+    df = require_dataset(session)
+    return build_profile(session.dataset_name, df)
