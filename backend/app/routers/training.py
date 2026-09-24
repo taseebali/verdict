@@ -35,6 +35,16 @@ def train_model(request: TrainRequest):
         raise HTTPException(status_code=400, detail=message)
 
     pipeline.preprocess()
+    if pipeline.preprocessor.get_task_type() != "classification":
+        n_values = state.df[request.target].nunique()
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"'{request.target}' has {n_values} distinct numeric values. "
+                "Verdict predicts categories — pick a target like yes/no or low/medium/high."
+            ),
+        )
+
     train_results = pipeline.train([request.method])
     if train_results[request.method].get("status") == "failed":
         raise HTTPException(status_code=500, detail=train_results[request.method]["error"])
@@ -65,4 +75,5 @@ def train_model(request: TrainRequest):
         model_name=request.method,
         metrics=eval_results[request.method],
         feature_importance=importance,
+        dropped_features=pipeline.preprocessor.dropped_columns,
     )

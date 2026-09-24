@@ -10,13 +10,14 @@ export interface DatasetSummary {
 export interface TrainRequest {
   target: string;
   features: string[] | null;
-  method: string;
+  method: "random_forest" | "logistic_regression";
 }
 
 export interface TrainResponse {
   model_name: string;
   metrics: Record<string, number>;
   feature_importance: Record<string, number>;
+  dropped_features: string[];
 }
 
 export interface SampleRowResponse {

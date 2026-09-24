@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -15,13 +15,14 @@ class DatasetSummary(BaseModel):
 class TrainRequest(BaseModel):
     target: str
     features: Optional[list[str]] = None
-    method: str = "random_forest"
+    method: Literal["random_forest", "logistic_regression"] = "random_forest"
 
 
 class TrainResponse(BaseModel):
     model_name: str
     metrics: dict[str, float]
     feature_importance: dict[str, float]
+    dropped_features: list[str] = []
 
 
 class SampleRowResponse(BaseModel):
