@@ -72,17 +72,17 @@ def test_empty_file_is_rejected(client):
 
 
 def test_too_large_upload_is_413(client, monkeypatch):
-    monkeypatch.setattr(uploads, "MAX_UPLOAD_BYTES", 10)
-    response = _upload(client, "a,b\n1,2\n3,4\n5,6\n")
+    monkeypatch.setattr(uploads, "MAX_UPLOAD_BYTES", 2 * 1024 * 1024)
+    response = _upload(client, "a\n" + "1\n" * 1_600_000)
     assert response.status_code == 413
-    assert "20 MB" in response.json()["detail"]
+    assert "2 MB" in response.json()["detail"]
 
 
 def test_too_many_rows_is_400(client, monkeypatch):
     monkeypatch.setattr(uploads, "MAX_ROWS", 3)
     response = _upload(client, "a\n1\n2\n3\n4\n")
     assert response.status_code == 400
-    assert "100,000" in response.json()["detail"]
+    assert "the limit is 3" in response.json()["detail"]
 
 
 def test_mixed_type_numeric_text_becomes_float():

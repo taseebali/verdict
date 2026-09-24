@@ -23,7 +23,10 @@ async def read_csv_upload(file: UploadFile) -> pd.DataFrame:
         raise HTTPException(status_code=400, detail="Only CSV files are supported.")
     contents = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File too large — the limit is 20 MB.")
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large — the limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+        )
     try:
         df = pd.read_csv(io.BytesIO(contents))
     except Exception:
@@ -31,5 +34,8 @@ async def read_csv_upload(file: UploadFile) -> pd.DataFrame:
     if df.empty:
         raise HTTPException(status_code=400, detail="The file has no data rows.")
     if len(df) > MAX_ROWS:
-        raise HTTPException(status_code=400, detail=f"The file has {len(df):,} rows — the limit is 100,000.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"The file has {len(df):,} rows — the limit is {MAX_ROWS:,}.",
+        )
     return coerce_numeric_text(df)
