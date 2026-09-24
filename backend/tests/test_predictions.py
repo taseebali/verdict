@@ -180,3 +180,68 @@ def test_multiclass_probability_agrees_with_prediction(client):
     sample = _sample_from_row(get_state())
     body = client.post("/api/predict", json={"features": sample}).json()
     assert body["probability"] == pytest.approx(body["confidence"])
+
+
+def test_whatif_delta_compares_same_class_multiclass(client):
+    """The whatif delta must compare the SAME class's probability across
+    baseline and scenario, namely the baseline's predicted class — not each
+    row's own top-probability class, which can differ once the scenario
+    flips the prediction."""
+    client.post("/api/datasets/demo")
+    client.post(
+        "/api/train",
+        json={"target": "satisfaction", "features": None, "method": "random_forest"},
+    )
+    from app.state import get_state
+    from app.routers.predictions import _transform_features
+
+    state = get_state()
+    baseline_features = _sample_from_row(state, 0)
+    scenario_features = dict(baseline_features)
+    # Push every numeric feature to its minimum — for this demo data/model,
+    # this reliably flips the predicted class, which is what exposes the bug
+    # (comparing two different classes' probabilities).
+    for f in state.model_features:
+        if state.df[f].dtype.kind in "if":
+            scenario_features[f] = float(state.df[f].min())
+
+    response = client.post(
+        "/api/whatif",
+        json={"baseline_features": baseline_features, "scenario_features": scenario_features},
+    )
+    assert response.status_code == 200
+    body = response.json()
+
+    baseline_row = _transform_features(baseline_features)
+    scenario_row = _transform_features(scenario_features)
+    baseline_proba = state.trained_model.predict_proba(baseline_row)[0]
+    scenario_proba = state.trained_model.predict_proba(scenario_row)[0]
+    baseline_raw = state.trained_model.predict(baseline_row)[0]
+    idx = list(state.trained_model.classes_).index(baseline_raw)
+
+    expected_delta = scenario_proba[idx] - baseline_proba[idx]
+    assert body["delta_probability"] == pytest.approx(expected_delta, abs=1e-4)
+
+
+def test_whatif_delta_binary_matches_probability_difference(client):
+    client.post("/api/datasets/demo")
+    client.post(
+        "/api/train",
+        json={"target": "churn", "features": None, "method": "random_forest"},
+    )
+    from app.state import get_state
+    state = get_state()
+    baseline_features = _sample_from_row(state, 0)
+    scenario_features = dict(baseline_features)
+    for f in state.model_features:
+        if state.df[f].dtype.kind in "if":
+            scenario_features[f] = float(state.df[f].max())
+
+    response = client.post(
+        "/api/whatif",
+        json={"baseline_features": baseline_features, "scenario_features": scenario_features},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    expected = body["scenario"]["probability"] - body["baseline"]["probability"]
+    assert body["delta_probability"] == pytest.approx(expected, abs=1e-4)

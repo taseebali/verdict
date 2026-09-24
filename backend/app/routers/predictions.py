@@ -82,8 +82,30 @@ def predict(request: PredictRequest):
 def whatif(request: WhatIfRequest):
     baseline = _predict_one(request.baseline_features)
     scenario = _predict_one(request.scenario_features)
+
+    state = get_state()
+    model = state.trained_model
+    if model is not None and hasattr(model, "predict_proba"):
+        baseline_row = _transform_features(request.baseline_features)
+        scenario_row = _transform_features(request.scenario_features)
+        baseline_proba = model.predict_proba(baseline_row)[0]
+        scenario_proba = model.predict_proba(scenario_row)[0]
+        # Binary: always compare P(class index 1), matching _predict_one's
+        # probability today. Multiclass: compare the SAME class in both rows
+        # — the baseline's predicted class — instead of each row's own
+        # top-probability class, which can differ once the scenario flips
+        # the prediction.
+        if len(baseline_proba) == 2:
+            idx = 1
+        else:
+            baseline_raw = model.predict(baseline_row)[0]
+            idx = list(model.classes_).index(baseline_raw)
+        delta = float(scenario_proba[idx] - baseline_proba[idx])
+    else:
+        delta = scenario.probability - baseline.probability
+
     return WhatIfResponse(
         baseline=baseline,
         scenario=scenario,
-        delta_probability=round(scenario.probability - baseline.probability, 4),
+        delta_probability=round(delta, 4),
     )
