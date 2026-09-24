@@ -20,7 +20,7 @@ class DecisionAuditLogger:
 
     def log_prediction(
         self,
-        prediction: int,
+        prediction: Any,
         probability: float,
         confidence: float,
         model_name: str,
@@ -32,7 +32,7 @@ class DecisionAuditLogger:
         """Log a single prediction decision."""
         record = {
             "timestamp": datetime.now().isoformat(),
-            "prediction": int(prediction),
+            "prediction": prediction,
             "probability": float(probability),
             "confidence": float(confidence),
             "confidence_level": (

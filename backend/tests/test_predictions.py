@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import pandas as pd
 import pytest
 
 
@@ -140,3 +143,41 @@ def test_predict_matches_pipeline_transform_directly(client):
     assert body["probability"] == pytest.approx(expected_probability, abs=1e-6)
     assert body["confidence"] == pytest.approx(float(max(direct_proba)), abs=1e-6)
 
+
+
+DEMO_CSV = Path(__file__).parents[2] / "data" / "verdict_demo.csv"
+
+
+def test_predict_returns_original_label_for_text_target(client):
+    df = pd.read_csv(DEMO_CSV).head(500)
+    df["churn"] = df["churn"].map({0: "No", 1: "Yes"})
+    client.post(
+        "/api/datasets/upload",
+        files={"file": ("d.csv", df.to_csv(index=False).encode(), "text/csv")},
+    )
+    train = client.post(
+        "/api/train",
+        json={"target": "churn", "features": None, "method": "random_forest"},
+    )
+    assert train.status_code == 200
+
+    from app.state import get_state
+    sample = _sample_from_row(get_state())
+    response = client.post("/api/predict", json={"features": sample})
+    assert response.status_code == 200
+    assert response.json()["prediction"] in ("No", "Yes")
+
+    audit = client.get("/api/audit-logs").json()
+    assert audit[-1]["prediction"] in ("No", "Yes")
+
+
+def test_multiclass_probability_agrees_with_prediction(client):
+    client.post("/api/datasets/demo")
+    client.post(
+        "/api/train",
+        json={"target": "satisfaction", "features": None, "method": "random_forest"},
+    )
+    from app.state import get_state
+    sample = _sample_from_row(get_state())
+    body = client.post("/api/predict", json={"features": sample}).json()
+    assert body["probability"] == pytest.approx(body["confidence"])

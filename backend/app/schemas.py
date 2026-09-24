@@ -38,7 +38,7 @@ class PredictRequest(BaseModel):
 
 
 class PredictResponse(BaseModel):
-    prediction: int
+    prediction: Union[int, float, str]
     probability: float
     confidence: float
 

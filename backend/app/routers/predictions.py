@@ -44,18 +44,22 @@ def _predict_one(features: dict) -> PredictResponse:
         raise HTTPException(status_code=400, detail="No trained model — call /api/train first")
 
     row = _transform_features(features)
-    prediction = int(state.trained_model.predict(row)[0])
+    raw = state.trained_model.predict(row)[0]
+    encoder = state.pipeline.preprocessor.target_encoder
+    label = encoder.inverse_transform([raw])[0] if encoder is not None else raw
+    prediction = label.item() if hasattr(label, "item") else label
 
     if hasattr(state.trained_model, "predict_proba"):
         proba = state.trained_model.predict_proba(row)[0]
-        probability = float(proba[1]) if len(proba) > 1 else float(proba[0])
         confidence = float(max(proba))
+        # Binary: probability of the positive class, so "3% churn" reads as 3%.
+        # Multiclass has no single positive class, so report the predicted
+        # class's own probability; it then always agrees with the prediction.
+        probability = float(proba[1]) if len(proba) == 2 else confidence
     else:
-        # Model has no predict_proba (e.g. a hard-voting ensemble) — there's
-        # no real probability distribution to report, so represent the hard
-        # decision as a valid 0-1 value rather than leaking the raw class
-        # label (which can be any integer, not a probability).
-        probability = 1.0 if prediction == 1 else 0.0
+        # Model has no predict_proba (e.g. a hard-voting ensemble): represent
+        # the hard decision as a valid 0-1 value.
+        probability = 1.0 if raw == 1 else 0.0
         confidence = 1.0
 
     state.audit_logger.log_prediction(

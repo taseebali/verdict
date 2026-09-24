@@ -33,7 +33,7 @@ export interface PredictRequest {
 }
 
 export interface PredictResponse {
-  prediction: number;
+  prediction: number | string;
   probability: number;
   confidence: number;
 }
@@ -51,7 +51,7 @@ export interface WhatIfResponse {
 
 export interface AuditRecord {
   timestamp: string;
-  prediction: number;
+  prediction: number | string;
   probability: number;
   confidence: number;
   confidence_level: string;
