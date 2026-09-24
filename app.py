@@ -1,6 +1,6 @@
 """
 VERDICT ML Platform - Main Application
-Root-level entry point for HuggingFace Spaces & Docker deployment
+Entry point for local runs and the Docker image.
 """
 
 import sys
@@ -17,14 +17,8 @@ def run_app():
     """Run the FastAPI backend, serving the built frontend as static files."""
     import uvicorn
 
-    print("""
-    ╔════════════════════════════════════════════════════════════╗
-    ║          VERDICT ML Platform - Starting Up                 ║
-    ╚════════════════════════════════════════════════════════════╝
-    """)
-
     port = int(os.getenv("PORT", 8000))
-    print(f"Server will run on port {port}\n")
+    print(f"Verdict running on http://localhost:{port}")
     uvicorn.run("backend.app.main:app", host="0.0.0.0", port=port)
 
 

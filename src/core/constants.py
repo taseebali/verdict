@@ -111,14 +111,6 @@ LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 # ============================================================================
-# UI Configuration
-# ============================================================================
-
-STREAMLIT_PAGE_TITLE = "Verdict ML Platform"
-STREAMLIT_PAGE_ICON = "🚀"
-STREAMLIT_LAYOUT = "wide"
-
-# ============================================================================
 # Error Messages & Validation
 # ============================================================================
 
