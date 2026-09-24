@@ -1,28 +1,28 @@
-FROM python:3.11-slim
+# --- Build the React frontend ---
+FROM node:22-slim AS frontend
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
+# --- Python runtime serving API + built frontend ---
+FROM python:3.12-slim
 WORKDIR /app
+ENV PYTHONUNBUFFERED=1 PYTHONIOENCODING=utf-8
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+COPY app.py pyproject.toml ./
+COPY config ./config
+COPY src ./src
+COPY backend/app ./backend/app
+COPY data/verdict_demo.csv ./data/verdict_demo.csv
+COPY --from=frontend /frontend/dist ./frontend/dist
 
-# Create necessary directories
-RUN mkdir -p /app/models /app/data /app/logs
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"
 
-# Expose ports
-EXPOSE 8000 8501
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')"
-
-# Run the application
 CMD ["python", "app.py"]
