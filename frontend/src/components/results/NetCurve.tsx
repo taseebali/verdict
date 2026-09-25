@@ -30,7 +30,7 @@ export function NetCurve({ curve, current, recommended }: Props) {
               fontSize={12}
             />
             <YAxis tickFormatter={(v) => compactMoney(Number(v))} stroke="#736b5f" fontSize={12} width={56} />
-            <Tooltip formatter={(v) => money(Number(v))} labelFormatter={(v) => `Cutoff ${v}%`} />
+            <Tooltip formatter={(v) => [money(Number(v)), "Net"]} labelFormatter={(v) => `Cutoff ${v}%`} />
             <ReferenceLine y={0} stroke="#736b5f" />
             <Line type="monotone" dataKey="net" stroke="#1c1a17" dot={false} strokeWidth={1.5} isAnimationActive={false} />
             <ReferenceDot x={Math.round(recommended.threshold * 100)} y={recommended.net} r={4} fill="#2f6b3a" stroke="none" />

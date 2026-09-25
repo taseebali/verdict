@@ -5,13 +5,19 @@ import { PageLoading } from "../components/Guards";
 import { DecisionControls } from "../components/results/DecisionControls";
 import { Headline } from "../components/results/Headline";
 import { NetCurve } from "../components/results/NetCurve";
+import { RiskTable } from "../components/results/RiskTable";
+import { ScoreNewFile } from "../components/results/ScoreNewFile";
 import { UnderTheHood } from "../components/results/UnderTheHood";
+import { WhatIfDrawer } from "../components/results/WhatIfDrawer";
 import { api } from "../lib/api";
 import { useSummary } from "../lib/queries";
-import type { Costs, ScoreResponse, Source } from "../lib/types";
+import type { Costs, ScoredRow, ScoreResponse, Source } from "../lib/types";
 import { useDebounced } from "../lib/useDebounced";
 
-const TABS = [{ id: "hood", label: "Under the hood" }] as const;
+const TABS = [
+  { id: "list", label: "At-risk list" },
+  { id: "hood", label: "Under the hood" },
+] as const;
 type TabId = (typeof TABS)[number]["id"];
 
 const DEFAULT_COSTS: Costs = { action_cost: 20, saved_value: 500, success_rate: 0.3 };
@@ -22,8 +28,9 @@ export function ResultsPage() {
   const debouncedCosts = useDebounced(costs, 400);
   const [chosenPct, setChosenPct] = useState<number | null>(null);
   const [tab, setTab] = useState<TabId>(TABS[0].id);
-  const [source] = useState<Source>("training");
-  const [newFile] = useState<ScoreResponse | null>(null);
+  const [source, setSource] = useState<Source>("training");
+  const [newFile, setNewFile] = useState<ScoreResponse | null>(null);
+  const [selected, setSelected] = useState<ScoredRow | null>(null);
 
   const decision = useQuery({
     queryKey: ["decision", debouncedCosts],
@@ -93,9 +100,57 @@ export function ResultsPage() {
           ))}
         </div>
         <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="pt-6">
+          {tab === "list" && (
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {newFile ? (
+                  <div role="group" aria-label="Rows to show" className="flex gap-1">
+                    {(["training", "new"] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        aria-pressed={source === s}
+                        onClick={() => setSource(s)}
+                        className={source === s ? "btn-primary" : "btn-secondary"}
+                      >
+                        {s === "training" ? "Your history (out-of-fold)" : `New file: ${newFile.name}`}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span />
+                )}
+                <a className="btn-secondary" href={api.exportUrl(source, threshold)} download>
+                  Export CSV
+                </a>
+              </div>
+              <RiskTable
+                key={source}
+                source={source}
+                threshold={threshold}
+                onSelect={source === "training" ? setSelected : undefined}
+              />
+              <details className="border-t border-rule pt-6">
+                <summary className="cursor-pointer font-medium">Score a new file</summary>
+                <p className="mt-2 text-sm text-ink-muted">
+                  Upload current records with the same columns (the outcome column can be missing). They're scored by
+                  the model trained on your history.
+                </p>
+                <div className="mt-4">
+                  <ScoreNewFile
+                    onScored={(result) => {
+                      setNewFile(result);
+                      setSource("new");
+                    }}
+                  />
+                </div>
+              </details>
+            </div>
+          )}
           {tab === "hood" && <UnderTheHood summary={summary} point={point} />}
         </div>
       </section>
+      {selected && <WhatIfDrawer row={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

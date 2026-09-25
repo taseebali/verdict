@@ -5,8 +5,9 @@ export const pct = (value: number, digits = 0) => `${(value * 100).toFixed(digit
 export const count = (value: number) => value.toLocaleString("en-US");
 
 export const money = (value: number) => {
-  const sign = value < 0 ? "−" : "+";
-  return `${sign}$${Math.round(Math.abs(value)).toLocaleString("en-US")}`;
+  const rounded = Math.round(value);
+  const sign = rounded < 0 ? "−" : "+";
+  return `${sign}$${Math.abs(rounded).toLocaleString("en-US")}`;
 };
 
 export const plainMoney = (value: number) => `$${value.toLocaleString("en-US")}`;
