@@ -122,3 +122,13 @@ def test_upload_handlers_run_in_the_threadpool():
     assert not inspect.iscoroutinefunction(uploads.read_csv_upload)
     assert not inspect.iscoroutinefunction(datasets.upload)
     assert not inspect.iscoroutinefunction(results.score)
+
+
+def test_oversized_upload_is_rejected_before_the_app_runs(client, monkeypatch):
+    from app.sessions import store
+    monkeypatch.setattr(uploads, "MAX_UPLOAD_BYTES", 1024)
+    response = _upload(client, "a\n" + "1\n" * 100_000)
+    assert response.status_code == 413
+    assert "the limit is 0 MB" in response.json()["detail"]
+    assert "set-cookie" not in response.headers   # no session dependency ran
+    assert len(store) == 0
