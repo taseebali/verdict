@@ -1,0 +1,49 @@
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configuration
+        id: cfg
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "::notice::HF_TOKEN secret or HF_SPACE variable not set — skipping deploy."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.enabled == 'true'
+        with:
+          fetch-depth: 1
+
+      - name: Push to Space
+        if: steps.cfg.outputs.enabled == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          # Spaces reject binaries pushed without LFS: drop docs/ and point README images at GitHub.
+          git rm -r -q --ignore-unmatch docs
+          sed -i "s#](docs/screenshots/#](https://raw.githubusercontent.com/${REPO}/main/docs/screenshots/#g" README.md
+          {
+            printf -- '---\ntitle: Verdict\nemoji: "⚖️"\ncolorFrom: red\ncolorTo: gray\nsdk: docker\napp_port: 7860\npinned: false\n---\n\n'
+            cat README.md
+          } > README.space.md
+          mv README.space.md README.md
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA::7} to Space"
+          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" HEAD:main

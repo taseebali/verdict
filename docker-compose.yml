@@ -2,5 +2,5 @@ services:
   verdict:
     build: .
     ports:
-      - "8000:8000"
+      - "7860:7860"
     restart: unless-stopped

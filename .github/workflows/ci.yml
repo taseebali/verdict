@@ -39,12 +39,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t verdict .
-      - run: docker run -d -p 8000:8000 --name verdict verdict
+      - run: docker run -d -p 7860:7860 --name verdict verdict
       - run: |
           for i in $(seq 1 30); do
-            curl -fs http://localhost:8000/api/health && exit 0
+            curl -fs http://localhost:7860/api/health && exit 0
             sleep 2
           done
           docker logs verdict
           exit 1
-      - run: curl -fs http://localhost:8000/ | grep -q "<title>Verdict</title>"
+      - run: curl -fs http://localhost:7860/ | grep -q "<title>Verdict</title>"
