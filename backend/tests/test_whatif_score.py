@@ -41,6 +41,16 @@ def test_whatif_errors(client):
     assert "nope" in response.json()["detail"]
 
 
+def test_whatif_rejects_list_valued_change(client):
+    _trained(client)
+    top = client.get("/api/results/rows?limit=1").json()["rows"][0]
+    response = client.post("/api/results/whatif", json={
+        "row_id": top["row_id"],
+        "changes": {"tenure_months": [1, 2]},
+    })
+    assert response.status_code == 422
+
+
 def test_score_new_file_and_page_it(client):
     _trained(client)
     new = pd.read_csv(DEMO_CSV).head(100).drop(columns="churn")

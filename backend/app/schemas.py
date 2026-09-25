@@ -106,7 +106,7 @@ class RowsResponse(BaseModel):
 
 class WhatIfRequest(BaseModel):
     row_id: int
-    changes: dict[str, Any] = {}
+    changes: dict[str, str | int | float | bool | None] = {}
 
 
 class WhatIfResponse(BaseModel):
