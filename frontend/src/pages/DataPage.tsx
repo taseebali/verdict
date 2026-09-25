@@ -12,6 +12,7 @@ export function DataPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const notice = (location.state as { notice?: string } | null)?.notice;
+  const expired = new URLSearchParams(location.search).get("expired") === "1";
   const dataset = useDataset();
 
   const onLoaded = (profile: DatasetProfile) => {
@@ -38,7 +39,7 @@ export function DataPage() {
         </p>
       </section>
 
-      {notice === "no-data" && (
+      {(notice === "no-data" || expired) && (
         <ErrorBanner message="No data loaded — your session may have expired (sessions last 1 hour). Load it again to continue." />
       )}
 
