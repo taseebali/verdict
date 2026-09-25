@@ -40,7 +40,8 @@ export function OutcomePage() {
 
   const byName = Object.fromEntries(profile.columns.map((c) => [c.name, c]));
   const suggestions = profile.target_suggestions;
-  const others = profile.columns.filter((c) => c.kind !== "identifier" && !suggestions.includes(c.name));
+  const cards = suggestions.slice(0, 6);
+  const others = profile.columns.filter((c) => c.kind !== "identifier" && !cards.includes(c.name));
   const values = byName[target]?.top_values ?? [];
   const positiveValue = values.some((v) => v.value === positive) ? positive : defaultPositive(values);
   const features = profile.columns.filter((c) => c.kind !== "identifier" && c.name !== target);
@@ -70,7 +71,7 @@ export function OutcomePage() {
       <fieldset>
         <legend className="sr-only">Outcome column</legend>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {suggestions.map((name) => {
+          {cards.map((name) => {
             const column = byName[name];
             const selected = target === name;
             return (
@@ -97,10 +98,10 @@ export function OutcomePage() {
         </div>
         {others.length > 0 && (
           <label className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-ink-muted">Or another column</span>
+            <span className="text-ink-muted">Or pick another column</span>
             <select
               className="field"
-              value={suggestions.includes(target) ? "" : target}
+              value={cards.includes(target) ? "" : target}
               onChange={(e) => chooseTarget(e.target.value)}
             >
               <option value="">Choose…</option>

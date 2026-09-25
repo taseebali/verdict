@@ -1,8 +1,14 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { StepBar } from "./StepBar";
 
 export function Layout({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-rule">
