@@ -84,7 +84,7 @@ export function ResultsPage() {
       </section>
 
       <section>
-        <div role="tablist" aria-label="Result views" className="flex gap-1 overflow-x-auto border-b border-rule">
+        <div role="tablist" aria-label="Result views" className="flex gap-1 border-b border-rule">
           {TABS.map((t) => (
             <button
               key={t.id}

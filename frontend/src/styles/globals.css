@@ -5,6 +5,7 @@
 @layer base {
   html {
     font-size: 15px;
+    scrollbar-gutter: stable;
   }
   body {
     @apply bg-paper font-sans text-ink antialiased;
