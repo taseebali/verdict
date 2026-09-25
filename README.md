@@ -102,7 +102,7 @@ Interactive docs are at `/docs` while the server is running.
 
 ## Deploy your own Space
 
-1. Create a new Space on Hugging Face and choose the **Docker** SDK (a blank template is fine).
+1. Create a new Space on Hugging Face and choose the **Gradio** SDK on the free **CPU basic** hardware (a blank template is fine). Verdict doesn't use Gradio. The workflow ships the built React UI with the FastAPI app, and the Space just runs `python app.py` on port 7860. The Dockerfile is for running locally or on other hosts.
 2. In this GitHub repo, open Settings → Secrets and variables → Actions:
    - Add a **secret** `HF_TOKEN` with a Hugging Face token that has *write* access.
    - Add a **variable** `HF_SPACE` set to `your-username/your-space-name`.

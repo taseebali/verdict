@@ -30,6 +30,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.enabled == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Gradio-SDK Spaces (free CPU) have no Node, so ship the built UI with the app.
+      - name: Build frontend
+        if: steps.cfg.outputs.enabled == 'true'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
       - name: Push to Space
         if: steps.cfg.outputs.enabled == 'true'
         env:
@@ -42,13 +57,16 @@ jobs:
           # Spaces reject binaries pushed without LFS: drop docs/ and point README images at GitHub.
           git rm -r -q --ignore-unmatch docs
           sed -i "s#](docs/screenshots/#](https://raw.githubusercontent.com/${REPO}/main/docs/screenshots/#g" README.md
+          # Gradio SDK (free tier): HF installs gradio + requirements.txt and runs `python app.py`,
+          # which starts our FastAPI server on 7860. gradio 5.50.0 is compatible with our fastapi pin.
           {
-            printf -- '---\ntitle: Verdict\nemoji: "⚖️"\ncolorFrom: red\ncolorTo: gray\nsdk: docker\napp_port: 7860\npinned: false\n---\n\n'
+            printf -- '---\ntitle: Verdict\nemoji: "⚖️"\ncolorFrom: red\ncolorTo: gray\nsdk: gradio\nsdk_version: 5.50.0\npython_version: "3.12"\napp_file: app.py\npinned: false\n---\n\n'
             cat README.md
           } > README.space.md
           mv README.space.md README.md
           # Orphan commit: no parents, so neither the shallow history nor old PNGs get pushed.
           git checkout -q --orphan space-deploy
           git add -A
+          git add -f frontend/dist
           git commit -q -m "Deploy ${GITHUB_SHA::7}"
           git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" space-deploy:main
