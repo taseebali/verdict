@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { PageLoading } from "../components/Guards";
 import { DecisionControls } from "../components/results/DecisionControls";
+import { DriversTab } from "../components/results/DriversTab";
 import { Headline } from "../components/results/Headline";
 import { NetCurve } from "../components/results/NetCurve";
 import { RiskTable } from "../components/results/RiskTable";
@@ -16,6 +17,7 @@ import { useDebounced } from "../lib/useDebounced";
 
 const TABS = [
   { id: "list", label: "At-risk list" },
+  { id: "drivers", label: "What drives it" },
   { id: "hood", label: "Under the hood" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -147,6 +149,7 @@ export function ResultsPage() {
               </details>
             </div>
           )}
+          {tab === "drivers" && <DriversTab summary={summary} />}
           {tab === "hood" && <UnderTheHood summary={summary} point={point} />}
         </div>
       </section>
