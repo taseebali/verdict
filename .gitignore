@@ -52,3 +52,5 @@ audit_logs/
 *.egg-info/
 docs/superpowers/
 
+
+.playwright-mcp/

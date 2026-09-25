@@ -2,7 +2,7 @@
 
 **Upload customer records. Get a verdict on who to act on.**
 
-Verdict learns from your history, scores every row honestly with out-of-fold predictions, explains each score, and turns your costs into a recommendation: *"Act on 412 of 5,000 rows. Net: +$38,200."*
+Verdict learns from your history, scores every row honestly with out-of-fold predictions, explains each score, and turns your costs into a recommendation: *"Act on 2,429 of 5,000 rows. Net: +$142,670."* (the demo dataset at default costs).
 
 ![CI](https://github.com/taseebali/verdict/actions/workflows/ci.yml/badge.svg)
 
@@ -15,8 +15,16 @@ Verdict learns from your history, scores every row honestly with out-of-fold pre
 3. **Verdict:**
    - **Decision:** enter the cost of acting, the value of a save and the success rate. Verdict recommends the risk cutoff with the highest expected net value, and you can drag it to see the trade-off.
    - **At-risk list:** every row ranked by risk, with the top reasons behind each score (SHAP). Click any row to test what-if changes, export the list as CSV, or score a new file with the trained model.
-   - **What drives it:** plain-language segments ("Month-to-month contracts churn at 42% vs 27% overall") plus permutation importance.
+   - **What drives it:** plain-language segments (e.g. "support_tickets 5 – 17: 78% have churn = 1, vs 28% overall") plus permutation importance.
    - **Under the hood:** ROC AUC, base rate, precision, recall and a confusion matrix at your cutoff, plus the ROC curve.
+
+## Screenshots
+
+| The verdict | What drives it |
+|---|---|
+| ![Verdict headline, cost controls and ranked list](docs/screenshots/verdict.png) | ![Plain-language drivers](docs/screenshots/drivers.png) |
+| **Data step** | **Under the hood** |
+| ![Data step with preview](docs/screenshots/data.png) | ![Metrics, confusion matrix and ROC](docs/screenshots/under-the-hood.png) |
 
 ## Why the numbers are honest
 
