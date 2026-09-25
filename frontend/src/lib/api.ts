@@ -1,17 +1,15 @@
 import type {
-  DatasetSummary,
+  Costs,
+  DatasetProfile,
+  DecisionResponse,
+  NewDecisionResponse,
+  RowsResponse,
+  ScoreResponse,
+  Source,
   TrainRequest,
-  TrainResponse,
-  PredictRequest,
-  PredictResponse,
-  WhatIfRequest,
+  TrainSummary,
   WhatIfResponse,
-  AuditRecord,
-  SampleRowResponse,
-  CategoriesResponse,
 } from "./types";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
   status: number;
@@ -23,46 +21,51 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new ApiError(body.detail ?? `Request failed: ${response.status}`, response.status);
-  }
-  return response.json();
+function messageFrom(detail: unknown, status: number): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg ?? "Invalid input").join("; ");
+  return `Request failed (${status})`;
 }
 
-export const apiClient = {
-  loadDemo: () => request<DatasetSummary>("/api/datasets/demo", { method: "POST" }),
+async function send<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new ApiError(messageFrom(body?.detail, response.status), response.status);
+  }
+  return response.json() as Promise<T>;
+}
 
-  uploadCsv: async (file: File): Promise<DatasetSummary> => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch(`${BASE_URL}/api/datasets/upload`, { method: "POST", body: formData });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new ApiError(body.detail ?? `Upload failed: ${response.status}`, response.status);
-    }
-    return response.json();
-  },
+const postJson = (body: unknown): RequestInit => ({
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
 
-  getCurrentDataset: () => request<DatasetSummary>("/api/datasets/current"),
-
-  train: (req: TrainRequest) =>
-    request<TrainResponse>("/api/train", { method: "POST", body: JSON.stringify(req) }),
-
-  predict: (req: PredictRequest) =>
-    request<PredictResponse>("/api/predict", { method: "POST", body: JSON.stringify(req) }),
-
-  whatif: (req: WhatIfRequest) =>
-    request<WhatIfResponse>("/api/whatif", { method: "POST", body: JSON.stringify(req) }),
-
-  getAuditLogs: () => request<AuditRecord[]>("/api/audit-logs"),
-
-  getSampleRow: () => request<SampleRowResponse>("/api/datasets/sample-row"),
-
-  getCategories: () => request<CategoriesResponse>("/api/datasets/categories"),
+const postFile = (file: File): RequestInit => {
+  const form = new FormData();
+  form.append("file", file);
+  return { method: "POST", body: form };
 };
+
+export const api = {
+  loadDemo: () => send<DatasetProfile>("/api/datasets/demo", { method: "POST" }),
+  uploadCsv: (file: File) => send<DatasetProfile>("/api/datasets/upload", postFile(file)),
+  currentDataset: () => send<DatasetProfile>("/api/datasets/current"),
+  train: (request: TrainRequest) => send<TrainSummary>("/api/train", postJson(request)),
+  summary: () => send<TrainSummary>("/api/results/summary"),
+  decision: (costs: Costs) => send<DecisionResponse>("/api/results/decision", postJson(costs)),
+  rows: (source: Source, offset: number, limit: number) =>
+    send<RowsResponse>(`/api/results/rows?source=${source}&offset=${offset}&limit=${limit}`),
+  whatIf: (rowId: number, changes: Record<string, string>) =>
+    send<WhatIfResponse>("/api/results/whatif", postJson({ row_id: rowId, changes })),
+  scoreFile: (file: File) => send<ScoreResponse>("/api/results/score", postFile(file)),
+  newDecision: (threshold: number, costs: Costs) =>
+    send<NewDecisionResponse>("/api/results/new/decision", postJson({ threshold, ...costs })),
+  exportUrl: (source: Source, threshold: number) =>
+    `/api/results/export.csv?source=${source}&threshold=${threshold}`,
+};
+
+/** The server forgot this visitor (expired session or never loaded data). */
+export const isSessionGone = (error: unknown) =>
+  error instanceof ApiError && error.status === 404 && error.message.startsWith("No dataset");
