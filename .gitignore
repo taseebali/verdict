@@ -16,13 +16,15 @@ ENV/
 *.swo
 *~
 
-# OS    
+# OS
 .DS_Store
 Thumbs.db
 
 # Project
 models/
 reports/
+cache/
+.superpowers/
 data/*.csv.backup
 *.log
 
@@ -43,4 +45,12 @@ htmlcov/
 AI_Decision_Copilot.pdf
 .data/datasets.txt
 data/datasets
-PROJECT_DOCUMENTATION.md
+.gitignore
+node_modules/
+frontend/dist/
+audit_logs/
+*.egg-info/
+docs/superpowers/
+
+
+.playwright-mcp/
