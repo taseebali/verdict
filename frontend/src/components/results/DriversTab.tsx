@@ -49,7 +49,7 @@ export function DriversTab({ summary }: { summary: TrainSummary }) {
       <section>
         <h2 className="text-2xl">What the model leans on</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Drop in ROC AUC when a column is shuffled (permutation importance).
+          Drop in ROC AUC when a column is shuffled (permutation importance on the final model).
         </p>
         {important.length ? (
           <ImportanceBars items={important} />

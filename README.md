@@ -14,7 +14,7 @@ Verdict learns from your history, scores every row honestly with out-of-fold pre
 2. **Outcome:** pick the column that records what happened and the outcome you want to catch (e.g. `churn = 1`).
 3. **Verdict:**
    - **Decision:** enter the cost of acting, the value of a save and the success rate. Verdict recommends the risk cutoff with the highest expected net value, and you can drag it to see the trade-off.
-   - **At-risk list:** every row ranked by risk, with the top reasons behind each score (SHAP). Click any row to test what-if changes, export the list as CSV, or score a new file with the trained model.
+   - **At-risk list:** every row ranked by risk, with the top reasons behind each score (SHAP for Random Forest, coefficient contributions for Logistic Regression). Click any row to test what-if changes, export the list as CSV, or score a new file with the trained model.
    - **What drives it:** plain-language segments (e.g. "support_tickets 5 – 17: 78% have churn = 1, vs 28% overall") plus permutation importance.
    - **Under the hood:** ROC AUC, base rate, precision, recall and a confusion matrix at your cutoff, plus the ROC curve.
 

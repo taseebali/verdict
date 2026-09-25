@@ -66,8 +66,12 @@ export function WhatIfDrawer({ row, onClose }: { row: ScoredRow; onClose: () => 
           </button>
         </div>
 
+        <p className="mt-4 text-sm text-ink-muted">
+          List score (out-of-fold): <span className="font-medium text-ink">{pct(row.probability)}</span>
+        </p>
+
         {result.data && (
-          <div className="mt-6 grid grid-cols-3 gap-3 border-y border-rule py-4 text-center" aria-live="polite">
+          <div className="mt-4 grid grid-cols-3 gap-3 border-y border-rule py-4 text-center" aria-live="polite">
             <Figure label="Now" value={pct(result.data.baseline)} />
             <Figure label="With changes" value={pct(result.data.scenario)} />
             <Figure
@@ -78,8 +82,8 @@ export function WhatIfDrawer({ row, onClose }: { row: ScoredRow; onClose: () => 
           </div>
         )}
         <p className="mt-2 text-xs text-ink-muted">
-          Scored by the final model trained on all rows, so "Now" can differ slightly from the list's out-of-fold
-          score.
+          What-if uses the final model, which was trained on every row including this one, so its level can differ
+          from the list score. Read the change, not the level.
         </p>
         {result.error && (
           <div className="mt-4">

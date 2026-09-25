@@ -117,7 +117,8 @@ export function UnderTheHood({ summary, point }: { summary: TrainSummary; point:
           </p>
           <p className="mt-2 text-ink-muted">
             Verdict tries every cutoff from 0% to 100% on the out-of-fold scores and recommends the one with the
-            highest net. If no cutoff pays, it recommends acting on nobody.
+            highest net. If no cutoff pays, it recommends acting on nobody. The recommended cutoff is chosen on the
+            same scores used to report its net, so treat the net as slightly optimistic.
           </p>
         </div>
       </section>
