@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import scipy.sparse as sp
 
 from src.core.scoring import (
     describe_drivers,
@@ -10,6 +11,27 @@ from src.core.scoring import (
     row_reasons,
     score_frame,
 )
+
+
+def test_logistic_regression_high_cardinality_categorical_stays_sparse():
+    """A 2,000-level categorical column must not densify into a huge matrix."""
+    n = 4000
+    rng = np.random.default_rng(3)
+    signal = rng.normal(size=n)
+    high_card = [f"c{i % 2000}" for i in range(n)]
+    target = np.where(signal + rng.normal(scale=0.4, size=n) > 0.3, "Yes", "No")
+    df = pd.DataFrame({"signal": signal, "high_card": high_card, "target": target})
+
+    model = fit_with_oof(df, "target", "Yes", method="logistic_regression")
+
+    X = prepare_features(df, model.numeric, model.categorical)
+    Xt = model.pipeline.named_steps["prep"].transform(X)
+    assert sp.issparse(Xt)
+
+    reasons = row_reasons(model, X.iloc[:5])
+    assert len(reasons) == 5
+    for row in reasons:
+        assert len(row) <= 3
 
 
 def _frame(n: int = 400, seed: int = 1) -> pd.DataFrame:

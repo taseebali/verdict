@@ -101,7 +101,7 @@ def build_pipeline(numeric: list[str], categorical: list[str], method: str) -> P
         if method == "random_forest":
             encoder = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
         else:  # logistic_regression
-            encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+            encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=True)
         transformers.append(("cat", Pipeline([
             ("impute", SimpleImputer(strategy="constant", fill_value="(missing)", keep_empty_features=True)),
             ("text", FunctionTransformer(_as_str)),
@@ -294,7 +294,10 @@ def row_reasons(model: "TrainedModel", X_rows: pd.DataFrame) -> list[list[Reason
     """Top 3 features pushing each row toward the positive outcome."""
     prep = model.pipeline.named_steps["prep"]
     clf = model.pipeline.named_steps["clf"]
-    Xt = np.asarray(prep.transform(X_rows), dtype=float)
+    Xt = prep.transform(X_rows)
+    if hasattr(Xt, "toarray"):
+        Xt = Xt.toarray()
+    Xt = np.asarray(Xt, dtype=float)
     if isinstance(clf, RandomForestClassifier):
         import shap  # heavy import; only needed here
 
