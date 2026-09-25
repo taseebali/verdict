@@ -15,6 +15,10 @@ export default {
         serif: ['"Iowan Old Style"', '"Palatino Linotype"', "Georgia", "serif"],
         sans: ["system-ui", "-apple-system", '"Segoe UI"', "Roboto", "sans-serif"],
       },
+      fontSize: {
+        // 0.8rem = 12px on the 15px root: the smallest size the design allows.
+        xs: ["0.8rem", { lineHeight: "1.1rem" }],
+      },
     },
   },
   plugins: [],
