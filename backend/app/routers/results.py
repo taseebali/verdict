@@ -22,7 +22,7 @@ from app.schemas import (
     WhatIfRequest,
     WhatIfResponse,
 )
-from app.sessions import NewScores, Session, get_session, require_model
+from app.sessions import NewScores, Session, existing_session, require_model
 from app.uploads import read_csv_upload
 from src.core.scoring import prepare_features, row_reasons, score_frame
 from src.decision.decision_curve import decision_curve, expected_net_for_new, recommend
@@ -84,13 +84,14 @@ def row_labels(frame: pd.DataFrame, identifiers: list[str]) -> list[str]:
 
 
 @router.get("/summary", response_model=TrainSummary)
-def summary(session: Session = Depends(get_session)):
-    require_model(session)
-    return summarize(session)
+def summary(session: Session = Depends(existing_session)):
+    with session.lock:
+        require_model(session)
+        return summarize(session)
 
 
 @router.post("/decision", response_model=DecisionResponse)
-def decision(request: DecisionRequest, session: Session = Depends(get_session)):
+def decision(request: DecisionRequest, session: Session = Depends(existing_session)):
     model = require_model(session)
     curve = decision_curve(model.oof_proba, model.actual, request.action_cost,
                            request.saved_value, request.success_rate)
@@ -100,7 +101,7 @@ def decision(request: DecisionRequest, session: Session = Depends(get_session)):
 
 @router.get("/rows", response_model=RowsResponse)
 def rows(offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100),
-         source: Source = "training", session: Session = Depends(get_session)):
+         source: Source = "training", session: Session = Depends(existing_session)):
     with session.lock:
         frame, proba, actual = source_view(session, source)
         order = np.argsort(-proba, kind="stable")[offset:offset + limit]
@@ -121,7 +122,7 @@ def rows(offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100),
 
 @router.get("/export.csv")
 def export(threshold: float = Query(0.5, ge=0, le=1), source: Source = "training",
-           session: Session = Depends(get_session)):
+           session: Session = Depends(existing_session)):
     with session.lock:
         frame, proba, _ = source_view(session, source)
         order = np.argsort(-proba, kind="stable")
@@ -150,7 +151,7 @@ def _jsonable(value):
 
 
 @router.post("/whatif", response_model=WhatIfResponse)
-def whatif(request: WhatIfRequest, session: Session = Depends(get_session)):
+def whatif(request: WhatIfRequest, session: Session = Depends(existing_session)):
     with session.lock:
         model = require_model(session)
         if request.row_id not in session.df.index:
@@ -173,10 +174,10 @@ def whatif(request: WhatIfRequest, session: Session = Depends(get_session)):
 
 
 @router.post("/score", response_model=ScoreResponse)
-def score(file: UploadFile, session: Session = Depends(get_session)):
-    model = require_model(session)
+def score(file: UploadFile, session: Session = Depends(existing_session)):
     df = read_csv_upload(file)
     with session.lock:
+        model = require_model(session)
         try:
             proba = score_frame(model, df)
         except ValueError as error:
@@ -187,7 +188,7 @@ def score(file: UploadFile, session: Session = Depends(get_session)):
 
 
 @router.post("/new/decision", response_model=NewDecisionResponse)
-def new_decision(request: NewDecisionRequest, session: Session = Depends(get_session)):
+def new_decision(request: NewDecisionRequest, session: Session = Depends(existing_session)):
     with session.lock:
         _, proba, _ = source_view(session, "new")
         flagged, net = expected_net_for_new(proba, request.threshold, request.action_cost,

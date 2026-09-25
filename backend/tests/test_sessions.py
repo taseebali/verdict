@@ -52,6 +52,22 @@ def test_least_recently_used_session_is_evicted():
     assert len(store) == 2
 
 
+def test_get_returns_none_for_unknown_session_and_does_not_create():
+    store = SessionStore(clock=FakeClock())
+    assert store.get("nope") is None
+    assert len(store) == 0
+
+
+def test_get_returns_known_session_and_applies_expiry():
+    clock = FakeClock()
+    store = SessionStore(ttl_seconds=10, clock=clock)
+    session, _ = store.get_or_create(None)
+    clock.t = 5
+    assert store.get(session.id) is session
+    clock.t = 16  # 11s since creation, past ttl -> expired
+    assert store.get(session.id) is None
+
+
 def test_reset_model_clears_model_state_only():
     store = SessionStore(clock=FakeClock())
     session, _ = store.get_or_create(None)

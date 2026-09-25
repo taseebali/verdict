@@ -71,6 +71,21 @@ class SessionStore:
                 self._sessions.popitem(last=False)
             return session, True
 
+    def get(self, session_id: Optional[str]) -> Optional[Session]:
+        """Look up a session with no creation and no cookie write. Applies expiry
+        and touches LRU order for whatever it finds."""
+        if not session_id:
+            return None
+        now = self._clock()
+        with self._lock:
+            self._expire(now)
+            session = self._sessions.get(session_id)
+            if session is None:
+                return None
+            session.last_seen = now
+            self._sessions.move_to_end(session.id)
+            return session
+
     def _expire(self, now: float) -> None:
         stale = [sid for sid, s in self._sessions.items() if now - s.last_seen > self._ttl]
         for sid in stale:
@@ -91,10 +106,20 @@ store = SessionStore()
 
 
 def get_session(request: Request, response: Response) -> Session:
-    """FastAPI dependency: the caller's session, created (and cookied) on first use."""
+    """FastAPI dependency: the caller's session, created (and cookied) on first use.
+    Use only for endpoints meant to start a session (demo, upload)."""
     session, created = store.get_or_create(request.cookies.get(COOKIE_NAME))
     if created:
         set_session_cookie(request, response, session.id)
+    return session
+
+
+def existing_session(request: Request) -> Session:
+    """FastAPI dependency: the caller's session with no create and no cookie write.
+    Use for read-only and mutation endpoints that require an already-started session."""
+    session = store.get(request.cookies.get(COOKIE_NAME))
+    if session is None:
+        raise HTTPException(status_code=404, detail=NO_DATASET)
     return session
 
 

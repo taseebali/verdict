@@ -5,7 +5,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, UploadFile
 
 from app.schemas import ColumnProfile, DatasetProfile, ValueCount
-from app.sessions import Session, get_session, require_dataset
+from app.sessions import Session, existing_session, get_session, require_dataset
 from app.uploads import read_csv_upload
 from src.core.scoring import infer_roles, target_suggestions
 
@@ -61,6 +61,6 @@ def upload(file: UploadFile, session: Session = Depends(get_session)):
 
 
 @router.get("/current", response_model=DatasetProfile)
-def current(session: Session = Depends(get_session)):
+def current(session: Session = Depends(existing_session)):
     df = require_dataset(session)
     return build_profile(session.dataset_name, df)

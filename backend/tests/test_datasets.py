@@ -124,6 +124,14 @@ def test_upload_handlers_run_in_the_threadpool():
     assert not inspect.iscoroutinefunction(results.score)
 
 
+def test_current_without_cookie_is_404_and_creates_no_session(client):
+    from app.sessions import store
+    response = client.get("/api/datasets/current")
+    assert response.status_code == 404
+    assert "set-cookie" not in response.headers
+    assert len(store) == 0
+
+
 def test_oversized_upload_is_rejected_before_the_app_runs(client, monkeypatch):
     from app.sessions import store
     monkeypatch.setattr(uploads, "MAX_UPLOAD_BYTES", 1024)

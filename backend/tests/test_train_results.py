@@ -42,6 +42,14 @@ def test_train_errors(client):
     assert _train(client, method="xgboost").status_code == 422
 
 
+def test_train_without_cookie_is_404_and_creates_no_session(client):
+    from app.sessions import store
+    response = _train(client)
+    assert response.status_code == 404
+    assert "set-cookie" not in response.headers
+    assert len(store) == 0
+
+
 def test_summary_requires_a_model_and_is_per_visitor(client, other_client):
     client.post("/api/datasets/demo")
     assert client.get("/api/results/summary").status_code == 404
