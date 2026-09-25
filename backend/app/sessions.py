@@ -94,9 +94,26 @@ def get_session(request: Request, response: Response) -> Session:
     """FastAPI dependency: the caller's session, created (and cookied) on first use."""
     session, created = store.get_or_create(request.cookies.get(COOKIE_NAME))
     if created:
-        secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-        response.set_cookie(COOKIE_NAME, session.id, httponly=True, samesite="lax", secure=secure, path="/")
+        set_session_cookie(request, response, session.id)
     return session
+
+
+def _is_https(request: Request) -> bool:
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    return request.url.scheme == "https" or forwarded == "https"
+
+
+def set_session_cookie(request: Request, response: Response, session_id: str) -> None:
+    """Behind https (HF Spaces serves the app in a cross-site iframe) the cookie
+    must be SameSite=None; Secure; Partitioned (CHIPS) or browsers won't send it.
+    Starlette 0.41's set_cookie has no `partitioned`, so the header is built here."""
+    if _is_https(request):
+        response.headers.append(
+            "set-cookie",
+            f"{COOKIE_NAME}={session_id}; HttpOnly; Path=/; SameSite=None; Secure; Partitioned",
+        )
+    else:
+        response.set_cookie(COOKIE_NAME, session_id, httponly=True, samesite="lax", path="/")
 
 
 def require_dataset(session: Session) -> pd.DataFrame:

@@ -90,3 +90,25 @@ def test_mixed_type_numeric_text_becomes_float():
     out = uploads.coerce_numeric_text(df)
     assert str(out["amount"].dtype) == "float64"
     assert out["amount"].tolist()[:3] == [1.0, 12.5, 3.0]
+
+
+def test_session_cookie_behind_https_proxy_is_cross_site_partitioned(client):
+    response = client.post("/api/datasets/demo", headers={"x-forwarded-proto": "https"})
+    cookie = response.headers["set-cookie"].lower()
+    assert "verdict_sid=" in cookie
+    assert "httponly" in cookie
+    assert "samesite=none" in cookie
+    assert "secure" in cookie
+    assert "partitioned" in cookie
+
+
+def test_session_cookie_over_plain_http_is_lax_and_not_secure(client):
+    cookie = client.post("/api/datasets/demo").headers["set-cookie"].lower()
+    assert "samesite=lax" in cookie
+    assert "secure" not in cookie
+
+
+def test_forwarded_proto_list_uses_first_value(client):
+    response = client.post("/api/datasets/demo", headers={"x-forwarded-proto": "HTTPS, http"})
+    cookie = response.headers["set-cookie"].lower()
+    assert "samesite=none" in cookie and "secure" in cookie and "partitioned" in cookie
