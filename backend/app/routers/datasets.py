@@ -55,8 +55,8 @@ def load_demo(session: Session = Depends(get_session)):
 
 
 @router.post("/upload", response_model=DatasetProfile)
-async def upload(file: UploadFile, session: Session = Depends(get_session)):
-    df = await read_csv_upload(file)
+def upload(file: UploadFile, session: Session = Depends(get_session)):
+    df = read_csv_upload(file)
     return _store(session, file.filename, df)
 
 

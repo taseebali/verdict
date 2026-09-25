@@ -173,9 +173,9 @@ def whatif(request: WhatIfRequest, session: Session = Depends(get_session)):
 
 
 @router.post("/score", response_model=ScoreResponse)
-async def score(file: UploadFile, session: Session = Depends(get_session)):
+def score(file: UploadFile, session: Session = Depends(get_session)):
     model = require_model(session)
-    df = await read_csv_upload(file)
+    df = read_csv_upload(file)
     with session.lock:
         try:
             proba = score_frame(model, df)

@@ -112,3 +112,13 @@ def test_forwarded_proto_list_uses_first_value(client):
     response = client.post("/api/datasets/demo", headers={"x-forwarded-proto": "HTTPS, http"})
     cookie = response.headers["set-cookie"].lower()
     assert "samesite=none" in cookie and "secure" in cookie and "partitioned" in cookie
+
+
+def test_upload_handlers_run_in_the_threadpool():
+    """Sync endpoints run off the event loop, so a locked session can't freeze other visitors."""
+    import inspect
+
+    from app.routers import datasets, results
+    assert not inspect.iscoroutinefunction(uploads.read_csv_upload)
+    assert not inspect.iscoroutinefunction(datasets.upload)
+    assert not inspect.iscoroutinefunction(results.score)

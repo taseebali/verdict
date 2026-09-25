@@ -18,10 +18,10 @@ def coerce_numeric_text(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-async def read_csv_upload(file: UploadFile) -> pd.DataFrame:
+def read_csv_upload(file: UploadFile) -> pd.DataFrame:
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported.")
-    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    contents = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
