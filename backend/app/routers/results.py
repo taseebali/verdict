@@ -188,7 +188,8 @@ async def score(file: UploadFile, session: Session = Depends(get_session)):
 
 @router.post("/new/decision", response_model=NewDecisionResponse)
 def new_decision(request: NewDecisionRequest, session: Session = Depends(get_session)):
-    _, proba, _ = source_view(session, "new")
-    flagged, net = expected_net_for_new(proba, request.threshold, request.action_cost,
-                                        request.saved_value, request.success_rate)
+    with session.lock:
+        _, proba, _ = source_view(session, "new")
+        flagged, net = expected_net_for_new(proba, request.threshold, request.action_cost,
+                                            request.saved_value, request.success_rate)
     return NewDecisionResponse(flagged=flagged, expected_net=net)
