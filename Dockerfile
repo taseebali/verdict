@@ -16,21 +16,14 @@ ENV PYTHONUNBUFFERED=1 \
     NUMBA_CACHE_DIR=/tmp/numba \
     PORT=7860
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -U pip && pip install --no-cache-dir -r requirements.txt
 
-COPY app.py pyproject.toml ./
-COPY src ./src
-COPY backend/app ./backend/app
-COPY data/verdict_demo.csv ./data/verdict_demo.csv
-COPY --from=frontend /frontend/dist ./frontend/dist
-
-# Hugging Face Spaces runs containers as uid 1000.
-RUN useradd --uid 1000 --no-create-home verdict
-USER 1000
+COPY . .
 
 EXPOSE 7860
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('PORT', '7860') + '/api/health')"
-
-CMD ["python", "app.py"]
+CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.address=0.0.0.0", "--server.headless=true"]
