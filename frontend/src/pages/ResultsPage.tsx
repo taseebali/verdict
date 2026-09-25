@@ -32,6 +32,7 @@ export function ResultsPage() {
   const [tab, setTab] = useState<TabId>(TABS[0].id);
   const [source, setSource] = useState<Source>("training");
   const [newFile, setNewFile] = useState<ScoreResponse | null>(null);
+  const [newFileVersion, setNewFileVersion] = useState(0);
   const [selected, setSelected] = useState<ScoredRow | null>(null);
 
   const decision = useQuery({
@@ -45,7 +46,7 @@ export function ResultsPage() {
   const threshold = thresholdPct / 100;
 
   const newDecision = useQuery({
-    queryKey: ["newDecision", newFile?.name, threshold, debouncedCosts],
+    queryKey: ["newDecision", newFileVersion, threshold, debouncedCosts],
     queryFn: () => api.newDecision(threshold, debouncedCosts),
     enabled: source === "new" && newFile !== null,
     placeholderData: keepPreviousData,
@@ -69,7 +70,11 @@ export function ResultsPage() {
 
   return (
     <div className="space-y-10">
-      <Headline {...headline} outcome={outcome} thresholdPct={thresholdPct} costs={costs} expected={onNew} />
+      {onNew && !newDecision.data ? (
+        <PageLoading />
+      ) : (
+        <Headline {...headline} outcome={outcome} thresholdPct={thresholdPct} costs={costs} expected={onNew} />
+      )}
 
       <section className="space-y-6 border-y border-rule py-8">
         <DecisionControls
@@ -127,9 +132,10 @@ export function ResultsPage() {
                 </a>
               </div>
               <RiskTable
-                key={source}
+                key={`${source}-${newFileVersion}`}
                 source={source}
                 threshold={threshold}
+                version={newFileVersion}
                 onSelect={source === "training" ? setSelected : undefined}
               />
               <details className="border-t border-rule pt-6">
@@ -143,6 +149,7 @@ export function ResultsPage() {
                     onScored={(result) => {
                       setNewFile(result);
                       setSource("new");
+                      setNewFileVersion((v) => v + 1);
                     }}
                   />
                 </div>

@@ -10,13 +10,14 @@ const PAGE_SIZE = 25;
 interface Props {
   source: Source;
   threshold: number;
+  version?: number;
   onSelect?: (row: ScoredRow) => void;
 }
 
-export function RiskTable({ source, threshold, onSelect }: Props) {
+export function RiskTable({ source, threshold, version = 0, onSelect }: Props) {
   const [page, setPage] = useState(0);
   const rows = useQuery({
-    queryKey: ["rows", source, page],
+    queryKey: ["rows", source, version, page],
     queryFn: () => api.rows(source, page * PAGE_SIZE, PAGE_SIZE),
     placeholderData: keepPreviousData,
   });
