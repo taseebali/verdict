@@ -3,7 +3,7 @@ from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
 from app.schemas import (
@@ -12,14 +12,20 @@ from app.schemas import (
     DecisionResponse,
     DriverOut,
     ImportanceOut,
+    NewDecisionRequest,
+    NewDecisionResponse,
     ReasonOut,
     RowsResponse,
+    ScoreResponse,
     ScoredRow,
     TrainSummary,
+    WhatIfRequest,
+    WhatIfResponse,
 )
-from app.sessions import Session, get_session, require_model
-from src.core.scoring import prepare_features, row_reasons
-from src.decision.decision_curve import decision_curve, recommend
+from app.sessions import NewScores, Session, get_session, require_model
+from app.uploads import read_csv_upload
+from src.core.scoring import prepare_features, row_reasons, score_frame
+from src.decision.decision_curve import decision_curve, expected_net_for_new, recommend
 
 router = APIRouter(prefix="/api/results", tags=["results"])
 
@@ -135,3 +141,54 @@ def export(threshold: float = Query(0.5, ge=0, le=1), source: Source = "training
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="verdict_{source}_scores.csv"'},
         )
+
+
+def _jsonable(value):
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return None
+    return value.item() if hasattr(value, "item") else value
+
+
+@router.post("/whatif", response_model=WhatIfResponse)
+def whatif(request: WhatIfRequest, session: Session = Depends(get_session)):
+    with session.lock:
+        model = require_model(session)
+        if request.row_id not in session.df.index:
+            raise HTTPException(status_code=404, detail="Row not found.")
+        unknown = sorted(set(request.changes) - set(model.features))
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Unknown feature(s): {', '.join(unknown)}")
+        base = session.df.loc[[request.row_id]].astype(object)
+        scenario = base.copy()
+        for feature, value in request.changes.items():
+            scenario.at[request.row_id, feature] = value
+        baseline = float(score_frame(model, base)[0])
+        changed = float(score_frame(model, scenario)[0])
+        return WhatIfResponse(
+            baseline=baseline,
+            scenario=changed,
+            delta=changed - baseline,
+            features={c: _jsonable(base.at[request.row_id, c]) for c in model.features},
+        )
+
+
+@router.post("/score", response_model=ScoreResponse)
+async def score(file: UploadFile, session: Session = Depends(get_session)):
+    model = require_model(session)
+    df = await read_csv_upload(file)
+    with session.lock:
+        try:
+            proba = score_frame(model, df)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+        session.new_scores = NewScores(name=file.filename, df=df, proba=proba)
+        session.reasons_cache = {k: v for k, v in session.reasons_cache.items() if k[0] != "new"}
+    return ScoreResponse(rows_scored=len(df), source="new", name=file.filename)
+
+
+@router.post("/new/decision", response_model=NewDecisionResponse)
+def new_decision(request: NewDecisionRequest, session: Session = Depends(get_session)):
+    _, proba, _ = source_view(session, "new")
+    flagged, net = expected_net_for_new(proba, request.threshold, request.action_cost,
+                                        request.saved_value, request.success_rate)
+    return NewDecisionResponse(flagged=flagged, expected_net=net)

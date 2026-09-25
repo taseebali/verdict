@@ -102,3 +102,30 @@ class RowsResponse(BaseModel):
     total: int
     source: Literal["training", "new"]
     rows: list[ScoredRow]
+
+
+class WhatIfRequest(BaseModel):
+    row_id: int
+    changes: dict[str, Any] = {}
+
+
+class WhatIfResponse(BaseModel):
+    baseline: float
+    scenario: float
+    delta: float
+    features: dict[str, Any]
+
+
+class ScoreResponse(BaseModel):
+    rows_scored: int
+    source: Literal["new"]
+    name: str
+
+
+class NewDecisionRequest(DecisionRequest):
+    threshold: float = Field(ge=0, le=1)
+
+
+class NewDecisionResponse(BaseModel):
+    flagged: int
+    expected_net: float
