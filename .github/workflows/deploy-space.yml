@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -44,6 +47,8 @@ jobs:
             cat README.md
           } > README.space.md
           mv README.space.md README.md
+          # Orphan commit: no parents, so neither the shallow history nor old PNGs get pushed.
+          git checkout -q --orphan space-deploy
           git add -A
-          git commit -q -m "Deploy ${GITHUB_SHA::7} to Space"
-          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" HEAD:main
+          git commit -q -m "Deploy ${GITHUB_SHA::7}"
+          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" space-deploy:main
