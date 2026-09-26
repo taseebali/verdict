@@ -2,11 +2,11 @@
 
 **Upload customer records. Get a verdict on who to act on.**
 
-Verdict learns from your history, scores every row honestly with out-of-fold predictions, explains each score, and turns your costs into a recommendation: *"Act on 2,429 of 5,000 rows. Net: +$142,670."* (the demo dataset at default costs).
+Verdict learns from your history, scores every row honestly with out-of-fold predictions, explains each score, and turns your costs into a recommendation: *"Act on 2,430 of 5,000 rows. Net: +$142,500."* (the live demo dataset at default costs).
 
 ![CI](https://github.com/taseebali/verdict/actions/workflows/ci.yml/badge.svg)
 
-**Live demo:** see [Deploy on Render](#deploy-on-render-free). Once it's live, put its URL here.
+**Live demo:** https://verdict-1bu3.onrender.com (free instance: the first visit after 15 minutes idle takes about a minute to wake)
 
 ## What it does
 
