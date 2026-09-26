@@ -1,11 +1,12 @@
 """Reading uploaded CSVs with size/row limits and light cleaning."""
 import io
+import os
 
 import pandas as pd
 from fastapi import HTTPException, UploadFile
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-MAX_ROWS = 100_000
+MAX_ROWS = int(os.getenv("VERDICT_MAX_ROWS", "100000"))
 
 
 def coerce_numeric_text(df: pd.DataFrame) -> pd.DataFrame:

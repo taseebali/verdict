@@ -30,7 +30,7 @@ export function UploadDrop({ onFile, busy, label = "Upload a CSV" }: Props) {
     >
       <span className="font-medium">{busy ? "Reading file…" : label}</span>
       <span className="text-sm text-ink-muted">
-        Drop a file here or click to choose · CSV up to 20 MB and 100,000 rows
+        Drop a file here or click to choose · CSV up to 20 MB
       </span>
       <input
         id={inputId}

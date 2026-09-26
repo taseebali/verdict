@@ -1,0 +1,18 @@
+# Render Blueprint: free web service built from the repo's Dockerfile.
+# Free instances have 512 MB RAM and 0.1 vCPU and sleep after 15 min idle,
+# so the limits below keep training fast and memory in bounds.
+services:
+  - type: web
+    name: verdict
+    runtime: docker
+    plan: free
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: VERDICT_RF_TREES
+        value: "40"
+      - key: VERDICT_MAX_SESSIONS
+        value: "5"
+      - key: VERDICT_MAX_ROWS
+        value: "20000"
