@@ -6,11 +6,11 @@ Verdict learns from your history, scores every row honestly with out-of-fold pre
 
 ![CI](https://github.com/taseebali/verdict/actions/workflows/ci.yml/badge.svg)
 
-**Live demo:** see [Deploy your own Space](#deploy-your-own-space). Once your Space is live, put its URL here.
+**Live demo:** see [Deploy on Render](#deploy-on-render-free). Once it's live, put its URL here.
 
 ## What it does
 
-1. **Data:** load the demo churn dataset or upload a CSV (≤ 20 MB, ≤ 100,000 rows). ID-like columns are detected and left out.
+1. **Data:** load the demo churn dataset or upload a CSV (≤ 20 MB; row limit set by `VERDICT_MAX_ROWS`, 100,000 by default). ID-like columns are detected and left out.
 2. **Outcome:** pick the column that records what happened and the outcome you want to catch (e.g. `churn = 1`).
 3. **Verdict:**
    - **Decision:** enter the cost of acting, the value of a save and the success rate. Verdict recommends the risk cutoff with the highest expected net value, and you can drag it to see the trade-off.
@@ -100,19 +100,27 @@ src/decision/decision_curve.py  net value per cutoff, recommendation
 
 Interactive docs are at `/docs` while the server is running.
 
-## Deploy your own Space
+## Deploy on Render (free)
 
-1. Create a new Space on Hugging Face and choose the **Gradio** SDK on the free **CPU basic** hardware (a blank template is fine). Verdict doesn't use Gradio. The workflow ships the built React UI with the FastAPI app, and the Space just runs `python app.py` on port 7860. The Dockerfile is for running locally or on other hosts.
-2. In this GitHub repo, open Settings → Secrets and variables → Actions:
-   - Add a **secret** `HF_TOKEN` with a Hugging Face token that has *write* access.
-   - Add a **variable** `HF_SPACE` set to `your-username/your-space-name`.
-3. Run the **Deploy to Hugging Face Space** workflow (Actions tab), or push to `main`.
-4. Free Spaces sleep when idle, so the first visit after a while takes about 30 seconds to wake.
+The repo includes a `render.yaml` Blueprint that builds the Dockerfile on Render's free plan.
+
+1. Sign in at https://render.com with GitHub.
+2. Choose **New → Blueprint**, select this repository, and click **Apply**.
+3. Render builds the image and deploys every push to `main`. The URL is `https://verdict-<suffix>.onrender.com`.
+
+The free plan has 512 MB RAM and 0.1 vCPU and sleeps after 15 minutes idle, so the first visit takes about a minute to wake. To fit that, `render.yaml` sets smaller limits through environment variables:
+
+| Variable | Default | On Render |
+|---|---|---|
+| `VERDICT_RF_TREES` | 100 | 40 (faster training) |
+| `VERDICT_MAX_SESSIONS` | 30 | 5 (memory) |
+| `VERDICT_MAX_ROWS` | 100,000 | 20,000 |
 
 ## Limitations
 
 - Classification outcomes only (2–20 distinct values). Continuous targets are rejected with a clear message.
 - Sessions live in memory: a restart or 1 hour idle clears your data.
+- Upload limits: 20 MB, and 100,000 rows by default (`VERDICT_MAX_ROWS`).
 - Reasons in the CSV export are filled for the first 1,000 flagged rows.
 
 ## License

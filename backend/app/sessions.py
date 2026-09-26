@@ -2,6 +2,7 @@
 
 Nothing here touches disk: a restart or idle expiry simply forgets the data.
 """
+import os
 import secrets
 import threading
 import time
@@ -102,7 +103,7 @@ class SessionStore:
         return len(self._sessions)
 
 
-store = SessionStore()
+store = SessionStore(max_sessions=int(os.getenv("VERDICT_MAX_SESSIONS", "30")))
 
 
 def get_session(request: Request, response: Response) -> Session:

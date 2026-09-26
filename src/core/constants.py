@@ -1,5 +1,7 @@
 """Shared constants and thresholds for the VERDICT platform."""
 
+import os
+
 # ============================================================================
 # Data Handling Constants
 # ============================================================================
@@ -61,7 +63,8 @@ LOGISTIC_REGRESSION_PARAMS = {
 
 # Random Forest parameters
 RANDOM_FOREST_PARAMS = {
-    "n_estimators": 100,
+    # Small hosts (e.g. Render free, 0.1 vCPU) set VERDICT_RF_TREES lower to keep training fast.
+    "n_estimators": int(os.getenv("VERDICT_RF_TREES", "100")),
     "max_depth": 10,
     "random_state": RANDOM_SEED,
     "n_jobs": -1,
